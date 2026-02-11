@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>TG Bot Pro Manager</title>
-    <!-- Google Fonts для современного вида -->
+    <title>TG Bot Pro Manager + Cloud</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root { 
@@ -20,6 +19,7 @@
             --safe-bottom: env(safe-area-inset-bottom);
             --shadow-sm: 0 2px 8px rgba(0,0,0,0.05);
             --shadow-md: 0 4px 16px rgba(0,0,0,0.1);
+            --danger: #eb4d4b;
         }
         
         * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
@@ -33,12 +33,9 @@
 
         .hidden { display: none !important; }
 
-        /* --- Контейнер приложения --- */
-        #app-container { 
-            display: flex; height: 100dvh; width: 100vw; position: relative;
-        }
+        /* --- UI Layout --- */
+        #app-container { display: flex; height: 100dvh; width: 100vw; position: relative; }
 
-        /* --- Боковая панель --- */
         #sidebar { 
             width: 100%; height: 100%; background: var(--white);
             display: flex; flex-direction: column; flex-shrink: 0;
@@ -53,42 +50,40 @@
             display: flex; justify-content: space-between; align-items: center;
         }
 
-        .header-ui h2 { margin: 0; font-size: 20px; font-weight: 700; color: var(--primary); }
+        .header-ui h2 { margin: 0; font-size: 18px; font-weight: 700; color: var(--primary); }
 
-        #chat-list { 
-            overflow-y: auto; flex-grow: 1; 
-            -webkit-overflow-scrolling: touch;
-        }
+        #sync-status { font-size: 10px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        #sync-status.syncing { color: var(--primary); }
 
+        /* --- Chat List --- */
+        #chat-list { overflow-y: auto; flex-grow: 1; -webkit-overflow-scrolling: touch; }
         .chat-card {
-            padding: 12px 16px; margin: 8px 12px;
-            border-radius: 16px; background: transparent;
-            display: flex; gap: 12px; align-items: center;
-            transition: 0.2s; cursor: pointer;
+            padding: 12px 16px; margin: 8px 12px; border-radius: 16px;
+            display: flex; gap: 12px; align-items: center; cursor: pointer; transition: 0.2s;
         }
         .chat-card:active { background: #f0f0f0; transform: scale(0.98); }
         .chat-card.active { background: #eef7ff; }
 
         .chat-avatar {
-            width: 52px; height: 52px; border-radius: 50%;
+            width: 50px; height: 50px; border-radius: 50%;
             background: linear-gradient(135deg, var(--primary-light), var(--primary));
             display: flex; align-items: center; justify-content: center;
-            color: white; font-weight: 700; font-size: 20px;
+            color: white; font-weight: 700; font-size: 18px;
         }
 
         .chat-meta { flex-grow: 1; overflow: hidden; }
-        .chat-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-        .chat-name { font-weight: 600; font-size: 16px; }
-        .chat-time { font-size: 12px; color: var(--text-muted); }
-        .chat-preview { font-size: 14px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .chat-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+        .chat-name { font-weight: 600; font-size: 15px; }
+        .chat-time { font-size: 11px; color: var(--text-muted); }
+        .chat-preview { font-size: 13px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         .unread-dot {
-            background: var(--primary); color: white; min-width: 20px; height: 20px;
-            border-radius: 10px; font-size: 11px; display: flex; align-items: center;
-            justify-content: center; padding: 0 6px; font-weight: 700;
+            background: var(--primary); color: white; min-width: 18px; height: 18px;
+            border-radius: 9px; font-size: 10px; display: flex; align-items: center;
+            justify-content: center; padding: 0 5px; font-weight: 700;
         }
 
-        /* --- Окно чата --- */
+        /* --- Chat Window --- */
         #chat-window { 
             position: absolute; inset: 0; z-index: 10;
             background: var(--bg-chat); display: flex; flex-direction: column;
@@ -98,30 +93,26 @@
 
         #messages-container {
             flex-grow: 1; overflow-y: auto; padding: 16px;
-            display: flex; flex-direction: column; gap: 12px;
+            display: flex; flex-direction: column; gap: 10px;
             -webkit-overflow-scrolling: touch;
         }
 
         .bubble {
             max-width: 85%; padding: 10px 14px; border-radius: 18px;
             font-size: 15px; position: relative; line-height: 1.4;
-            box-shadow: var(--shadow-sm); animation: fadeIn 0.2s ease;
+            box-shadow: var(--shadow-sm);
         }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-
         .bubble.in { align-self: flex-start; background: var(--white); border-bottom-left-radius: 4px; }
         .bubble.out { align-self: flex-end; background: #dcf8c6; border-bottom-right-radius: 4px; }
-
+        
         .bubble-btn {
             margin-top: 8px; background: rgba(255,255,255,0.7);
-            border: 1px solid rgba(0,0,0,0.05); border-radius: 10px;
-            padding: 10px; text-align: center; font-weight: 600;
-            color: var(--primary); font-size: 14px; pointer-events: none;
+            border-radius: 10px; padding: 8px; text-align: center;
+            font-weight: 600; color: var(--primary); font-size: 13px;
         }
+        .bubble-time { font-size: 10px; color: var(--text-muted); float: right; margin-top: 4px; }
 
-        .bubble-time { font-size: 10px; color: var(--text-muted); float: right; margin: 4px -4px -4px 8px; }
-
-        /* --- Нижняя панель --- */
+        /* --- Bottom Input & Presets --- */
         .bottom-panel {
             background: var(--glass); backdrop-filter: blur(15px);
             padding: 12px 12px calc(12px + var(--safe-bottom));
@@ -130,132 +121,113 @@
 
         .presets-row {
             display: flex; gap: 10px; overflow-x: auto; padding-bottom: 12px;
-            scrollbar-width: none; -webkit-overflow-scrolling: touch;
+            -webkit-overflow-scrolling: touch;
         }
-        .presets-row::-webkit-scrollbar { display: none; }
-
         .preset-item {
-            min-width: 150px; background: var(--white); border-radius: 14px;
-            padding: 10px; border: 2px solid transparent; transition: 0.2s;
-            box-shadow: var(--shadow-sm); position: relative;
+            min-width: 140px; background: var(--white); border-radius: 14px;
+            padding: 10px; border: 2px solid transparent; position: relative;
+            box-shadow: var(--shadow-sm); transition: 0.2s;
         }
         .preset-item.selected { border-color: var(--primary); background: #f0f9ff; }
-        .preset-tag { font-size: 10px; color: var(--primary); font-weight: 700; margin-bottom: 4px; display: block; }
-        .preset-txt { font-size: 12px; color: var(--text-main); height: 34px; overflow: hidden; line-height: 1.2; }
+        .preset-txt { font-size: 11px; color: var(--text-main); height: 30px; overflow: hidden; }
         .preset-btn-mock { 
             margin-top: 6px; border: 1px solid var(--primary); color: var(--primary);
-            font-size: 11px; text-align: center; border-radius: 6px; padding: 4px; font-weight: 600;
+            font-size: 10px; text-align: center; border-radius: 6px; padding: 3px; font-weight: 600;
         }
-        .preset-edit-btn { position: absolute; top: 6px; right: 8px; font-size: 14px; color: #ccc; }
 
-        .input-wrap { display: flex; gap: 10px; align-items: flex-end; }
-        
+        .input-wrap { display: flex; gap: 8px; align-items: flex-end; }
         .main-input {
             flex-grow: 1; min-height: 44px; max-height: 120px;
             background: rgba(0,0,0,0.04); border: none; border-radius: 22px;
-            padding: 12px 18px; font-size: 16px; outline: none;
-            appearance: none; -webkit-appearance: none;
+            padding: 12px 16px; font-size: 16px; outline: none; resize: none;
         }
-
         .send-trigger {
             width: 44px; height: 44px; border-radius: 50%;
             background: var(--primary); color: white; border: none;
-            display: flex; align-items: center; justify-content: center;
-            cursor: pointer; transition: 0.2s; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center; font-size: 20px;
         }
-        .send-trigger:active { transform: scale(0.9); background: var(--primary-light); }
 
-        /* --- Модальное окно --- */
+        /* --- Login Screen --- */
+        #login-screen {
+            height: 100dvh; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; padding: 24px;
+            background: linear-gradient(135deg, #e0f2fe, #f0f9ff);
+        }
+        .login-card {
+            background: var(--white); padding: 28px; border-radius: 28px;
+            width: 100%; max-width: 380px; box-shadow: var(--shadow-md);
+        }
+        .login-card h1 { margin: 0 0 10px; font-size: 24px; text-align: center; color: var(--primary); }
+        .input-field {
+            width: 100%; padding: 12px; border-radius: 12px; border: 1px solid #ddd;
+            font-size: 15px; margin-bottom: 12px; outline: none;
+        }
+
+        /* --- Modal --- */
         .modal-overlay {
             position: fixed; inset: 0; background: rgba(0,0,0,0.4);
             backdrop-filter: blur(4px); z-index: 100;
             display: flex; align-items: center; justify-content: center; padding: 20px;
         }
         .modal {
-            background: var(--white); width: 100%; max-width: 400px;
-            border-radius: 28px; padding: 24px; box-shadow: var(--shadow-md);
-            animation: modalIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-        @keyframes modalIn { from { transform: scale(0.9) translateY(20px); opacity: 0; } }
-
-        .field-group { margin-bottom: 16px; }
-        .field-group label { display: block; font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
-        .field-group input, .field-group textarea {
-            width: 100%; padding: 12px; border-radius: 12px; border: 1px solid #eee;
-            font-size: 16px; font-family: inherit; outline: none;
-            appearance: none; -webkit-appearance: none;
-        }
-
-        .modal-btns { display: flex; gap: 12px; margin-top: 20px; }
-        .btn { 
-            flex: 1; padding: 14px; border-radius: 14px; border: none; 
-            font-weight: 700; font-size: 15px; cursor: pointer; transition: 0.2s;
-            appearance: none; -webkit-appearance: none;
-        }
-        .btn-primary { background: var(--primary); color: white; }
-        .btn-danger { background: #fee2e2; color: var(--danger); }
-        .btn-ghost { background: transparent; color: var(--text-muted); }
-
-        /* --- Экран входа --- */
-        #login-screen {
-            height: 100dvh; display: flex; flex-direction: column;
-            justify-content: center; align-items: center; padding: 30px;
-            background: linear-gradient(135deg, #e0f2fe, #f0f9ff);
-        }
-        .login-card {
-            background: var(--white); padding: 32px; border-radius: 32px;
-            width: 100%; max-width: 360px; box-shadow: var(--shadow-md);
-            text-align: center;
+            background: var(--white); width: 100%; max-width: 380px;
+            border-radius: 24px; padding: 20px;
         }
     </style>
 </head>
 <body>
 
-    <!-- Вход -->
+    <!-- Экран авторизации (TG + Gist) -->
     <div id="login-screen">
         <div class="login-card">
-            <h1 style="color:var(--primary); margin:0 0 8px">TG Bot Pro</h1>
-            <p style="color:var(--text-muted); margin-bottom:24px">Введите токен вашего бота</p>
-            <input type="text" id="bot-token" placeholder="API Token" style="width:100%; padding:14px; border-radius:12px; border:1px solid #ddd; font-size:16px; margin-bottom:16px; outline:none">
-            <button class="btn btn-primary" style="width:100%" onclick="initApp()">Подключиться</button>
+            <h1>TG Cloud Manager</h1>
+            <p style="font-size:13px; color:var(--text-muted); margin-bottom:20px; text-align:center">Настройте бота и синхронизацию GitHub</p>
+            
+            <label style="font-size:12px; font-weight:600; color:var(--text-muted)">TELEGRAM BOT TOKEN</label>
+            <input type="password" id="login-tg-token" class="input-field" placeholder="123456:ABCDE...">
+            
+            <label style="font-size:12px; font-weight:600; color:var(--text-muted)">GITHUB PERSONAL TOKEN (gist scope)</label>
+            <input type="password" id="login-gh-token" class="input-field" placeholder="ghp_xxxx">
+            
+            <label style="font-size:12px; font-weight:600; color:var(--text-muted)">GIST ID (Optional)</label>
+            <input type="text" id="login-gist-id" class="input-field" placeholder="Оставьте пустым для создания нового">
+            
+            <button class="send-trigger" style="width:100%; border-radius:12px; font-size:16px; font-weight:700" onclick="saveConfig()">Войти и Синхронизировать</button>
         </div>
     </div>
 
-    <!-- Основной интерфейс -->
+    <!-- Основное приложение -->
     <div id="app-container" class="hidden">
-        <!-- Список чатов -->
         <aside id="sidebar">
             <header class="header-ui">
-                <h2 id="bot-username">@bot</h2>
-                <button onclick="logout()" class="btn-ghost" style="font-size:13px; font-weight:600; border:none; background:none">Выйти</button>
+                <div>
+                    <h2 id="ui-bot-name">@bot</h2>
+                    <div id="sync-status">Загрузка...</div>
+                </div>
+                <button onclick="logout()" style="background:none; border:none; font-size:12px; font-weight:700; color:var(--danger)">ВЫХОД</button>
             </header>
-            <div id="chat-list">
-                <!-- Сюда попадут чаты -->
-            </div>
+            <div id="chat-list"></div>
         </aside>
 
-        <!-- Окно чата -->
         <main id="chat-window">
             <header class="header-ui">
-                <button onclick="closeChat()" style="background:none; border:none; font-size:24px; padding:0 10px 0 0">←</button>
+                <button onclick="closeChat()" style="background:none; border:none; font-size:24px; padding:0 12px 0 0">←</button>
                 <div style="flex-grow:1">
                     <div id="chat-active-name" style="font-weight:700; font-size:16px">Имя</div>
-                    <div style="font-size:11px; color:var(--text-muted)">в сети</div>
+                    <div style="font-size:11px; color:var(--text-muted)">online</div>
                 </div>
             </header>
 
-            <div id="messages-container">
-                <!-- Сообщения -->
-            </div>
+            <div id="messages-container"></div>
 
             <div class="bottom-panel">
-                <div id="presets-container" class="presets-row">
+                <div id="presets-row" class="presets-row">
                     <button onclick="openTplModal()" style="min-width:44px; height:44px; border-radius:14px; border:2px dashed #ccc; background:none; font-size:20px; color:#999">+</button>
                     <div id="tpl-list-ui" style="display:flex; gap:10px"></div>
                 </div>
                 <div class="input-wrap">
                     <textarea id="msg-input" class="main-input" placeholder="Сообщение..." rows="1" oninput="autoHeight(this)"></textarea>
-                    <button class="send-trigger" onclick="handleSend()">↑</button>
+                    <button id="send-btn" class="send-trigger" onclick="handleSend()">↑</button>
                 </div>
             </div>
         </main>
@@ -264,62 +236,115 @@
     <!-- Редактор пресетов -->
     <div id="modal-tpl" class="modal-overlay hidden">
         <div class="modal">
-            <h3 style="margin:0 0 20px">Редактор пресета</h3>
-            <div class="field-group">
-                <label>Текст сообщения</label>
-                <textarea id="tpl-text" rows="3" placeholder="Что напишет бот?"></textarea>
+            <h3 style="margin:0 0 16px">Пресет</h3>
+            <textarea id="tpl-text" class="input-field" rows="3" placeholder="Текст сообщения"></textarea>
+            <input type="text" id="tpl-btn-name" class="input-field" placeholder="Название кнопки">
+            <input type="text" id="tpl-url" class="input-field" placeholder="URL (Mini App)">
+            <div style="display:flex; gap:10px; margin-top:10px">
+                <button id="btn-del-tpl" class="send-trigger hidden" style="background:var(--danger); border-radius:12px; flex:1" onclick="deleteTpl()">Удалить</button>
+                <button class="send-trigger" style="background:#2ecc71; border-radius:12px; flex:2; font-size:14px" onclick="saveTpl()">Сохранить</button>
             </div>
-            <div class="field-group">
-                <label>Название кнопки Mini App</label>
-                <input type="text" id="tpl-btn-name" placeholder="Открыть магазин">
-            </div>
-            <div class="field-group">
-                <label>Ссылка (URL)</label>
-                <input type="text" id="tpl-url" placeholder="https://...">
-            </div>
-            <div class="modal-btns">
-                <button id="btn-del-tpl" class="btn btn-danger hidden" onclick="confirmDelete()">Удалить</button>
-                <button class="btn btn-primary" onclick="saveTpl()">Сохранить</button>
-            </div>
-            <button class="btn btn-ghost" style="width:100%; margin-top:10px" onclick="closeTplModal()">Отмена</button>
+            <button onclick="closeTplModal()" style="width:100%; background:none; border:none; padding:15px; color:var(--text-muted)">Отмена</button>
         </div>
     </div>
 
     <script>
-        let botToken = localStorage.getItem('pro_bot_token');
-        let chats = JSON.parse(localStorage.getItem('pro_chats')) || {};
-        let presets = JSON.parse(localStorage.getItem('pro_presets')) || [];
+        const STORAGE_KEY = 'tg_cloud_config';
+        let config = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+        let chats = {};
+        let presets = [];
         let activeChatId = null;
         let selectedPresetIdx = null;
         let editingPresetIdx = null;
-        let offset = 0;
+        let updateOffset = 0;
 
-        window.onload = () => { if(botToken) startSession(); renderPresets(); };
+        window.onload = () => { if(config.tgToken && config.ghToken) startApp(); };
 
-        function initApp() {
-            const t = document.getElementById('bot-token').value.trim();
-            if(t) { localStorage.setItem('pro_bot_token', t); location.reload(); }
+        function saveConfig() {
+            const tg = document.getElementById('login-tg-token').value.trim();
+            const gh = document.getElementById('login-gh-token').value.trim();
+            const gist = document.getElementById('login-gist-id').value.trim();
+            if(!tg || !gh) return alert('Нужны токены TG и GitHub');
+            config = { tgToken: tg, ghToken: gh, gistId: gist };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+            location.reload();
         }
 
         function logout() { localStorage.clear(); location.reload(); }
 
-        function startSession() {
+        async function startApp() {
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('app-container').classList.remove('hidden');
+            
+            // Загружаем данные из Gist
+            setSyncStatus('Синхронизация...');
+            await syncWithGist(true); 
+            
             fetchBotInfo();
             pollUpdates();
+            renderPresets();
             renderChatList();
         }
 
+        function setSyncStatus(txt) {
+            const el = document.getElementById('sync-status');
+            el.innerText = txt;
+            el.className = (txt === 'Облако активно') ? '' : 'syncing';
+        }
+
+        /* --- GITHUB GIST API --- */
+        async function syncWithGist(isInitial = false) {
+            const headers = { 'Authorization': `token ${config.ghToken}`, 'Content-Type': 'application/json' };
+            
+            try {
+                if (!config.gistId) {
+                    // Создаем новый Gist если ID нет
+                    const res = await fetch('https://api.github.com/gists', {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify({
+                            description: "TG Bot Manager Data",
+                            public: false,
+                            files: { "data.json": { content: JSON.stringify({ chats: {}, presets: [] }) } }
+                        })
+                    }).then(r => r.json());
+                    config.gistId = res.id;
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+                }
+
+                if (isInitial) {
+                    // Загружаем данные
+                    const res = await fetch(`https://api.github.com/gists/${config.gistId}`, { headers }).then(r => r.json());
+                    const cloudData = JSON.parse(res.files["data.json"].content);
+                    chats = cloudData.chats || {};
+                    presets = cloudData.presets || [];
+                } else {
+                    // Сохраняем данные
+                    await fetch(`https://api.github.com/gists/${config.gistId}`, {
+                        method: 'PATCH',
+                        headers,
+                        body: JSON.stringify({
+                            files: { "data.json": { content: JSON.stringify({ chats, presets }) } }
+                        })
+                    });
+                }
+                setSyncStatus('Облако активно');
+            } catch (e) {
+                console.error(e);
+                setSyncStatus('Ошибка синхронизации');
+            }
+        }
+
+        /* --- TELEGRAM API --- */
         async function fetchBotInfo() {
-            const r = await fetch(`https://api.telegram.org/bot${botToken}/getMe`).then(res => res.json());
-            if(r.ok) document.getElementById('bot-username').innerText = `@${r.result.username}`;
+            const r = await fetch(`https://api.telegram.org/bot${config.tgToken}/getMe`).then(res => res.json());
+            if(r.ok) document.getElementById('ui-bot-name').innerText = `@${r.result.username}`;
         }
 
         async function pollUpdates() {
-            while(botToken) {
+            while(config.tgToken) {
                 try {
-                    const res = await fetch(`https://api.telegram.org/bot${botToken}/getUpdates?offset=${offset}&timeout=30`).then(r => r.json());
+                    const res = await fetch(`https://api.telegram.org/bot${config.tgToken}/getUpdates?offset=${updateOffset}&timeout=30`).then(r => r.json());
                     if(res.ok && res.result.length > 0) {
                         res.result.forEach(u => {
                             if(u.message) {
@@ -328,25 +353,26 @@
                                 if(cid != activeChatId) chats[cid].unread++;
                                 
                                 const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-                                chats[cid].lastMsg = u.message.text || '📎 Медиа';
+                                chats[cid].lastMsg = u.message.text || '📎 Media';
                                 chats[cid].lastTime = time;
                                 chats[cid].messages.push({ type:'in', text: chats[cid].lastMsg, time });
-                                offset = u.update_id + 1;
+                                updateOffset = u.update_id + 1;
                             }
                         });
-                        saveData(); renderChatList(); if(activeChatId) renderMessages();
+                        renderChatList(); if(activeChatId) renderMessages();
+                        syncWithGist(); // Сохраняем после новых входящих
                     }
-                } catch(e) { await new Promise(r => setTimeout(r, 2000)); }
+                } catch(e) { await new Promise(r => setTimeout(r, 5000)); }
             }
         }
 
-        /* Чат UI */
+        /* --- UI LOGIC --- */
         function openChat(id) {
             activeChatId = id;
             chats[id].unread = 0;
             document.getElementById('chat-active-name').innerText = chats[id].name;
             document.getElementById('chat-window').classList.add('open');
-            renderChatList(); renderMessages(); saveData();
+            renderChatList(); renderMessages();
         }
 
         function closeChat() {
@@ -365,14 +391,8 @@
                 card.innerHTML = `
                     <div class="chat-avatar">${c.name[0]}</div>
                     <div class="chat-meta">
-                        <div class="chat-row">
-                            <span class="chat-name">${c.name}</span>
-                            <span class="chat-time">${c.lastTime || ''}</span>
-                        </div>
-                        <div class="chat-row">
-                            <span class="chat-preview">${c.lastMsg || 'Нет сообщений'}</span>
-                            ${c.unread > 0 ? `<div class="unread-dot">${c.unread}</div>` : ''}
-                        </div>
+                        <div class="chat-row"><span class="chat-name">${c.name}</span><span class="chat-time">${c.lastTime || ''}</span></div>
+                        <div class="chat-row"><span class="chat-preview">${c.lastMsg || ''}</span>${c.unread > 0 ? `<div class="unread-dot">${c.unread}</div>` : ''}</div>
                     </div>
                 `;
                 container.appendChild(card);
@@ -386,58 +406,10 @@
             chats[activeChatId].messages.forEach(m => {
                 const b = document.createElement('div');
                 b.className = `bubble ${m.type}`;
-                b.innerHTML = `
-                    <div>${m.text}</div>
-                    ${m.btn ? `<div class="bubble-btn">${m.btn}</div>` : ''}
-                    <span class="bubble-time">${m.time}</span>
-                `;
+                b.innerHTML = `<div>${m.text}</div>${m.btn ? `<div class="bubble-btn">${m.btn}</div>` : ''}<span class="bubble-time">${m.time}</span>`;
                 h.appendChild(b);
             });
             h.scrollTop = h.scrollHeight;
-        }
-
-        /* Пресеты Логика */
-        function openTplModal(idx = null) {
-            editingPresetIdx = idx;
-            const delBtn = document.getElementById('btn-del-tpl');
-            if(idx !== null) {
-                const p = presets[idx];
-                document.getElementById('tpl-text').value = p.text;
-                document.getElementById('tpl-btn-name').value = p.btn;
-                document.getElementById('tpl-url').value = p.url;
-                delBtn.classList.remove('hidden');
-            } else {
-                document.getElementById('tpl-text').value = '';
-                document.getElementById('tpl-btn-name').value = '';
-                document.getElementById('tpl-url').value = '';
-                delBtn.classList.add('hidden');
-            }
-            document.getElementById('modal-tpl').classList.remove('hidden');
-        }
-
-        function closeTplModal() { document.getElementById('modal-tpl').classList.add('hidden'); }
-
-        function saveTpl() {
-            const text = document.getElementById('tpl-text').value.trim();
-            const btn = document.getElementById('tpl-btn-name').value.trim();
-            const url = document.getElementById('tpl-url').value.trim();
-            if(!text || !btn || !url) return;
-
-            const pData = { text, btn, url };
-            if(editingPresetIdx !== null) presets[editingPresetIdx] = pData;
-            else presets.push(pData);
-
-            localStorage.setItem('pro_presets', JSON.stringify(presets));
-            renderPresets(); closeTplModal();
-        }
-
-        function confirmDelete() {
-            if(confirm("Удалить этот пресет?")) {
-                presets.splice(editingPresetIdx, 1);
-                localStorage.setItem('pro_presets', JSON.stringify(presets));
-                selectedPresetIdx = null;
-                renderPresets(); closeTplModal();
-            }
         }
 
         function renderPresets() {
@@ -451,12 +423,7 @@
                     document.getElementById('msg-input').value = selectedPresetIdx !== null ? presets[i].text : '';
                     renderPresets();
                 };
-                el.innerHTML = `
-                    <span class="preset-tag">ПРЕСЕТ</span>
-                    <div class="preset-txt">${p.text}</div>
-                    <div class="preset-btn-mock">${p.btn}</div>
-                    <span class="preset-edit-btn" onclick="event.stopPropagation(); openTplModal(${i})">✎</span>
-                `;
+                el.innerHTML = `<div class="preset-txt">${p.text}</div><div class="preset-btn-mock">${p.btn}</div><span style="position:absolute; top:4px; right:6px; color:#ccc; font-size:12px" onclick="event.stopPropagation(); openTplModal(${i})">✎</span>`;
                 container.appendChild(el);
             });
         }
@@ -466,7 +433,7 @@
             const val = input.value.trim();
             if(!val || !activeChatId) return;
 
-            let url = `https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${activeChatId}&text=${encodeURIComponent(val)}`;
+            let url = `https://api.telegram.org/bot${config.tgToken}/sendMessage?chat_id=${activeChatId}&text=${encodeURIComponent(val)}`;
             let btnName = null;
 
             if(selectedPresetIdx !== null) {
@@ -482,12 +449,38 @@
                 chats[activeChatId].messages.push({ type: 'out', text: val, time, btn: btnName });
                 chats[activeChatId].lastMsg = "Вы: " + val;
                 input.value = ''; selectedPresetIdx = null;
-                renderPresets(); renderMessages(); renderChatList(); saveData();
+                renderPresets(); renderMessages(); renderChatList();
+                syncWithGist(); 
             }
         }
 
-        function saveData() {
-            localStorage.setItem('pro_chats', JSON.stringify(chats));
+        /* --- Presets Editor --- */
+        function openTplModal(idx = null) {
+            editingPresetIdx = idx;
+            if(idx !== null) {
+                document.getElementById('tpl-text').value = presets[idx].text;
+                document.getElementById('tpl-btn-name').value = presets[idx].btn;
+                document.getElementById('tpl-url').value = presets[idx].url;
+                document.getElementById('btn-del-tpl').classList.remove('hidden');
+            } else {
+                document.getElementById('tpl-text').value = ''; document.getElementById('tpl-btn-name').value = ''; document.getElementById('tpl-url').value = '';
+                document.getElementById('btn-del-tpl').classList.add('hidden');
+            }
+            document.getElementById('modal-tpl').classList.remove('hidden');
+        }
+        function closeTplModal() { document.getElementById('modal-tpl').classList.add('hidden'); }
+        function saveTpl() {
+            const t = document.getElementById('tpl-text').value.trim();
+            const b = document.getElementById('tpl-btn-name').value.trim();
+            const u = document.getElementById('tpl-url').value.trim();
+            if(!t || !b || !u) return;
+            if(editingPresetIdx !== null) presets[editingPresetIdx] = { text:t, btn:b, url:u };
+            else presets.push({ text:t, btn:b, url:u });
+            renderPresets(); closeTplModal(); syncWithGist();
+        }
+        function deleteTpl() {
+            presets.splice(editingPresetIdx, 1);
+            renderPresets(); closeTplModal(); syncWithGist();
         }
 
         function autoHeight(el) {

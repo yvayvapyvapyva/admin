@@ -2,65 +2,125 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TG Bot Manager: Full Edit/Delete</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>TG Bot iPhone Edition</title>
     <style>
-        :root { --tg-color: #0088cc; --bg-color: #f0f2f5; --accent: #34a853; --out-msg: #effdde; --unread: #ff4d4d; --danger: #eb4d4b; }
+        :root { 
+            --tg-color: #0088cc; --bg-color: #f0f2f5; --accent: #34a853; 
+            --out-msg: #effdde; --unread: #ff4d4d; --danger: #eb4d4b; 
+            --safe-bottom: env(safe-area-inset-bottom);
+        }
         
-        html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg-color); display: flex; flex-direction: column; }
+        /* Исправление высоты для iOS */
+        html, body { 
+            height: 100dvh; margin: 0; padding: 0; 
+            overflow: hidden; -webkit-tap-highlight-color: transparent; 
+        }
+        
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg-color); display: flex; flex-direction: column;
+        }
+
         .hidden { display: none !important; }
         
-        #main-screen { display: grid; grid-template-columns: 320px 1fr; height: 100vh; width: 100vw; }
+        /* Адаптивная сетка: на мобилках список чатов прячется при открытом чате */
+        #main-screen { 
+            display: flex; height: 100dvh; width: 100vw; position: relative;
+        }
         
-        /* Боковая панель */
-        #sidebar { background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; height: 100vh; }
-        .sidebar-header { padding: 15px; background: var(--tg-color); color: white; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; }
-        #chat-list { overflow-y: auto; flex-grow: 1; }
-        .chat-item { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; align-items: center; height: 70px; }
-        .chat-item.active { background: #e1f0ff; border-left: 4px solid var(--tg-color); }
-        .chat-info { overflow: hidden; }
-        .chat-name { font-weight: bold; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .chat-last-msg { font-size: 0.85em; color: #777; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        /* Боковая панель (Список чатов) */
+        #sidebar { 
+            background: white; width: 100%; height: 100%; 
+            display: flex; flex-direction: column; flex-shrink: 0;
+            transition: transform 0.3s ease;
+        }
+        
+        /* Область чата (надвигается поверх на мобилках) */
+        #chat-window { 
+            position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+            background: #e7ebf0; display: flex; flex-direction: column;
+            transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 10;
+        }
+        #chat-window.open { transform: translateX(0); }
 
-        /* Область чата */
-        #chat-window { display: flex; flex-direction: column; height: 100vh; overflow: hidden; background: #e7ebf0; }
-        #messages-history { flex-grow: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 8px; }
-        .msg-bubble { max-width: 75%; padding: 8px 12px; border-radius: 12px; background: white; align-self: flex-start; box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: relative; word-wrap: break-word; }
+        .sidebar-header, .chat-header { 
+            padding: 12px 16px; padding-top: calc(12px + env(safe-area-inset-top));
+            background: var(--tg-color); color: white; 
+            display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
+        }
+
+        /* Список чатов */
+        #chat-list { overflow-y: auto; -webkit-overflow-scrolling: touch; flex-grow: 1; }
+        .chat-item { 
+            padding: 14px 16px; border-bottom: 0.5px solid #eee; 
+            display: flex; justify-content: space-between; align-items: center; min-height: 75px; 
+        }
+
+        /* Сообщения */
+        #messages-history { 
+            flex-grow: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; 
+            padding: 15px; display: flex; flex-direction: column; gap: 8px; 
+        }
+        .msg-bubble { 
+            max-width: 80%; padding: 10px 14px; border-radius: 18px; 
+            background: white; font-size: 15px; line-height: 1.4;
+            box-shadow: 0 1px 1px rgba(0,0,0,0.1); word-wrap: break-word; 
+        }
         .msg-out { align-self: flex-end; background: var(--out-msg); border-bottom-right-radius: 4px; }
-        .msg-time { font-size: 10px; color: #999; float: right; margin-top: 5px; margin-left: 10px; }
-        .msg-btn { display: block; width: 100%; margin-top: 8px; padding: 8px; background: rgba(0, 136, 204, 0.1); color: var(--tg-color); border: 1px solid rgba(0, 136, 204, 0.2); border-radius: 8px; text-align: center; font-size: 0.9em; font-weight: 600; }
-
-        /* Панель пресетов */
-        .controls-panel { background: white; border-top: 1px solid #ddd; padding: 12px; flex-shrink: 0; }
-        #templates-bar { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px solid #f0f0f0; }
-        .preset-card { min-width: 160px; max-width: 160px; background: #f8f9fa; border: 2px solid #eee; border-radius: 10px; padding: 8px; cursor: pointer; position: relative; }
-        .preset-card.selected { border-color: var(--tg-color); background: #f0f7ff; }
-        .preset-preview-text { font-size: 0.7em; color: #666; height: 30px; overflow: hidden; margin-bottom: 5px; }
-        .preset-preview-btn { background: white; border: 1px solid var(--tg-color); color: var(--tg-color); border-radius: 6px; font-size: 0.7em; padding: 3px; text-align: center; font-weight: bold; }
-        .edit-icon { position: absolute; top: 4px; right: 6px; font-size: 12px; color: #aaa; }
-
-        .input-area { display: flex; gap: 10px; align-items: center; }
-        #reply-text { flex-grow: 1; padding: 12px; border-radius: 20px; border: 1px solid #ddd; outline: none; }
-        .btn-main { background: var(--tg-color); color: white; border-radius: 20px; padding: 10px 22px; font-weight: bold; border: none; cursor: pointer; }
         
-        /* Модалка с кнопкой удаления */
-        #modal-tpl { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 100; }
-        .modal-content { background: white; padding: 25px; border-radius: 12px; width: 320px; display: flex; flex-direction: column; gap: 10px; }
-        input, textarea { padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; }
-        .modal-footer { display: flex; gap: 10px; margin-top: 10px; }
-        .btn-save { background: var(--accent); color: white; flex: 2; padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        .btn-delete { background: var(--danger); color: white; flex: 1; padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        .btn-cancel { background: #ccc; width: 100%; padding: 10px; border: none; border-radius: 8px; margin-top: 5px; cursor: pointer; }
+        /* Кнопки пресетов (iOS Style) */
+        .msg-btn { 
+            display: block; margin-top: 8px; padding: 10px;
+            background: white; color: var(--tg-color);
+            border-radius: 10px; text-align: center; font-weight: 600; font-size: 14px;
+        }
+
+        /* Панель управления */
+        .controls-panel { 
+            background: white; padding: 10px 10px calc(10px + var(--safe-bottom)); 
+            border-top: 0.5px solid #ccc; flex-shrink: 0;
+        }
+        
+        #templates-bar { 
+            display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px;
+            -webkit-overflow-scrolling: touch;
+        }
+        .preset-card { 
+            min-width: 140px; background: #f1f3f5; border-radius: 12px; 
+            padding: 10px; border: 2px solid transparent; 
+        }
+        .preset-card.selected { border-color: var(--tg-color); background: #eef7ff; }
+
+        /* Ввод (размер шрифта 16px для предотвращения зума на iPhone) */
+        .input-area { display: flex; gap: 8px; align-items: center; }
+        #reply-text { 
+            flex-grow: 1; padding: 10px 15px; border-radius: 25px; 
+            border: 1px solid #ddd; outline: none; font-size: 16px; 
+            background: #f9f9f9; -webkit-appearance: none;
+        }
+        .btn-main { 
+            background: var(--tg-color); color: white; border-radius: 50%; 
+            width: 40px; height: 40px; border: none; font-weight: bold; font-size: 18px;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+
+        /* Модалка */
+        .modal-content { 
+            width: 90%; max-width: 350px; border-radius: 20px; 
+            padding: 20px; background: white;
+        }
+        input, textarea { font-size: 16px !important; } /* Важно для iOS */
     </style>
 </head>
 <body>
 
     <div id="login-screen">
-        <div style="background: white; padding: 30px; border-radius: 12px; text-align: center;">
-            <h2>Bot Login</h2>
-            <input type="text" id="bot-token-input" placeholder="Введите API Токен" style="width:100%">
-            <button onclick="saveToken()" style="background:var(--tg-color); color:white; margin-top:15px; width:100%; padding:10px; border:none; border-radius:8px;">Войти</button>
+        <div style="padding: 40px 20px; text-align: center;">
+            <h2 style="color: var(--tg-color)">Bot Admin</h2>
+            <input type="text" id="bot-token-input" placeholder="Token" style="width:100%; padding:15px; border-radius:12px; border:1px solid #ccc; font-size:16px; box-sizing: border-box;">
+            <button onclick="saveToken()" style="background:var(--tg-color); color:white; margin-top:15px; width:100%; padding:15px; border:none; border-radius:12px; font-weight:bold;">Войти</button>
         </div>
     </div>
 
@@ -68,38 +128,41 @@
         <aside id="sidebar">
             <div class="sidebar-header">
                 <span id="bot-name">...</span>
-                <button onclick="logout()" style="background:none; color:white; border:1px solid white; padding:4px 8px; cursor:pointer">Выход</button>
+                <button onclick="logout()" style="background:none; border:1px solid white; color:white; border-radius:8px; padding:4px 8px; font-size:12px">Выход</button>
             </div>
             <div id="chat-list"></div>
         </aside>
 
         <section id="chat-window">
+            <div class="chat-header">
+                <button onclick="closeChat()" style="background:none; border:none; color:white; font-size:24px; padding:0 10px 0 0">←</button>
+                <span id="active-chat-title" style="font-weight:bold; flex-grow:1">Чат</span>
+            </div>
             <div id="messages-history"></div>
             <div class="controls-panel">
                 <div id="templates-bar">
-                    <button onclick="openModal()" style="min-width:40px; height:40px; border-radius:10px; border:2px dashed #ccc; background:none; cursor:pointer">+</button>
+                    <button onclick="openModal()" style="min-width:44px; height:44px; border-radius:12px; border:1px solid #ccc; background:none; font-size:20px">+</button>
                     <div id="tpl-list" style="display: flex; gap: 10px;"></div>
                 </div>
                 <div class="input-area">
-                    <input type="text" id="reply-text" placeholder="Сообщение..." onkeypress="if(event.key==='Enter') sendMessage()">
-                    <button class="btn-main" onclick="sendMessage()">ОТПРАВИТЬ</button>
+                    <input type="text" id="reply-text" placeholder="Сообщение" onkeypress="if(event.key==='Enter') sendMessage()">
+                    <button class="btn-main" onclick="sendMessage()">↑</button>
                 </div>
             </div>
         </section>
     </div>
 
-    <div id="modal-tpl" class="hidden">
+    <div id="modal-tpl" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:100;">
         <div class="modal-content">
-            <h3 id="modal-title" style="margin:0">Настройка пресета</h3>
-            <textarea id="new-tpl-text" rows="3" placeholder="Текст сообщения"></textarea>
-            <input type="text" id="new-tpl-name" placeholder="Текст на кнопке">
-            <input type="text" id="new-tpl-url" placeholder="URL ссылки">
-            
-            <div class="modal-footer">
-                <button id="modal-delete-btn" class="btn-delete hidden" onclick="deleteTemplateFromModal()">Удалить</button>
-                <button class="btn-save" onclick="saveTemplate()">Сохранить</button>
+            <h3 style="margin-top:0">Пресет</h3>
+            <textarea id="new-tpl-text" rows="3" placeholder="Текст сообщения" style="width:100%; box-sizing:border-box; margin-bottom:10px; border-radius:8px; padding:10px"></textarea>
+            <input type="text" id="new-tpl-name" placeholder="Текст кнопки" style="width:100%; box-sizing:border-box; margin-bottom:10px; border-radius:8px; padding:10px">
+            <input type="text" id="new-tpl-url" placeholder="https://..." style="width:100%; box-sizing:border-box; margin-bottom:10px; border-radius:8px; padding:10px">
+            <div style="display:flex; gap:10px">
+                <button id="modal-delete-btn" onclick="deleteTemplateFromModal()" style="background:var(--danger); color:white; border:none; padding:12px; border-radius:10px; font-weight:bold" class="hidden">Удалить</button>
+                <button onclick="saveTemplate()" style="background:var(--accent); color:white; border:none; padding:12px; border-radius:10px; font-weight:bold; flex:1">Сохранить</button>
             </div>
-            <button class="btn-cancel" onclick="closeModal()">Отмена</button>
+            <button onclick="closeModal()" style="width:100%; background:none; border:none; padding:15px; color:#666">Отмена</button>
         </div>
     </div>
 
@@ -120,28 +183,36 @@
         }
         function logout() { localStorage.clear(); location.reload(); }
 
-        /* Логика модального окна */
+        // Логика перехода между списком и чатом (Mobile Friendly)
+        function openChat(id) {
+            activeChatId = id;
+            chats[id].unreadCount = 0;
+            document.getElementById('active-chat-title').innerText = chats[id].name;
+            document.getElementById('chat-window').classList.add('open');
+            saveAll(); renderChatList(); renderMessages();
+        }
+        function closeChat() {
+            activeChatId = null;
+            document.getElementById('chat-window').classList.remove('open');
+        }
+
+        /* Пресеты */
         function openModal(idx = null) {
             editingTemplateIndex = idx;
             const delBtn = document.getElementById('modal-delete-btn');
-            
             if (idx !== null) {
                 const t = templates[idx];
                 document.getElementById('new-tpl-name').value = t.name;
                 document.getElementById('new-tpl-text').value = t.text || "";
                 document.getElementById('new-tpl-url').value = t.url;
-                delBtn.classList.remove('hidden'); // Показываем кнопку удаления
+                delBtn.classList.remove('hidden');
             } else {
-                document.getElementById('new-tpl-name').value = "";
-                document.getElementById('new-tpl-text').value = "";
-                document.getElementById('new-tpl-url').value = "";
-                delBtn.classList.add('hidden'); // Скрываем при создании нового
+                document.getElementById('new-tpl-name').value = ""; document.getElementById('new-tpl-text').value = ""; document.getElementById('new-tpl-url').value = "";
+                delBtn.classList.add('hidden');
             }
             document.getElementById('modal-tpl').classList.remove('hidden');
         }
-
         function closeModal() { document.getElementById('modal-tpl').classList.add('hidden'); }
-
         function saveTemplate() {
             const name = document.getElementById('new-tpl-name').value.trim();
             const text = document.getElementById('new-tpl-text').value.trim();
@@ -153,14 +224,12 @@
                 renderTemplates(); closeModal();
             }
         }
-
         function deleteTemplateFromModal() {
-            if (editingTemplateIndex !== null && confirm("Вы уверены, что хотите удалить этот пресет?")) {
+            if (editingTemplateIndex !== null && confirm("Удалить?")) {
                 templates.splice(editingTemplateIndex, 1);
                 localStorage.setItem('tg_templates', JSON.stringify(templates));
                 selectedTemplateIndex = null;
-                renderTemplates();
-                closeModal();
+                renderTemplates(); closeModal();
             }
         }
 
@@ -170,30 +239,25 @@
             templates.forEach((tpl, idx) => {
                 const div = document.createElement('div');
                 div.className = `preset-card ${selectedTemplateIndex === idx ? 'selected' : ''}`;
-                div.onclick = () => selectTemplate(idx);
+                div.onclick = () => {
+                    selectedTemplateIndex = (selectedTemplateIndex === idx) ? null : idx;
+                    document.getElementById('reply-text').value = selectedTemplateIndex !== null ? templates[idx].text : "";
+                    renderTemplates();
+                };
                 div.innerHTML = `
-                    <div class="preset-preview-text">${tpl.text || '...'}</div>
-                    <div class="preset-preview-btn">${tpl.name}</div>
-                    <span class="edit-icon" onclick="event.stopPropagation(); openModal(${idx})">✎</span>
+                    <div style="font-size:10px; color:#666; height:24px; overflow:hidden">${tpl.text || '...'}</div>
+                    <div style="color:var(--tg-color); font-weight:bold; font-size:11px; text-align:center; border:1px solid; border-radius:5px; margin-top:5px; padding:2px">${tpl.name}</div>
+                    <div style="position:absolute; top:4px; right:4px; font-size:12px" onclick="event.stopPropagation(); openModal(${idx})">✎</div>
                 `;
                 container.appendChild(div);
             });
         }
 
-        function selectTemplate(idx) {
-            selectedTemplateIndex = (selectedTemplateIndex === idx) ? null : idx;
-            document.getElementById('reply-text').value = selectedTemplateIndex !== null ? templates[idx].text : "";
-            renderTemplates();
-        }
-
-        /* Telegram логика */
+        /* Чат */
         async function showMainScreen() {
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('main-screen').classList.remove('hidden');
-            renderChatList(); getBotInfo(); pollMessages();
-        }
-
-        async function getBotInfo() {
+            renderChatList(); pollMessages();
             const r = await fetch(`https://api.telegram.org/bot${botToken}/getMe`).then(res => res.json());
             if(r.ok) document.getElementById('bot-name').innerText = `@${r.result.username}`;
         }
@@ -226,15 +290,15 @@
             Object.keys(chats).forEach(id => {
                 const c = chats[id];
                 const item = document.createElement('div');
-                item.className = `chat-item ${id == activeChatId ? 'active' : ''}`;
-                item.onclick = () => { activeChatId = id; c.unreadCount = 0; saveAll(); renderChatList(); renderMessages(); };
+                item.className = 'chat-item';
+                item.onclick = () => openChat(id);
                 item.innerHTML = `
                     <div class="chat-info">
                         <span class="chat-name">${c.name}</span>
                         <span class="chat-last-msg">${c.lastMessage || ''}</span>
                     </div>
-                    <div class="chat-meta">
-                        ${c.unreadCount > 0 ? `<div style="background:var(--unread);color:white;border-radius:10px;padding:2px 7px;font-size:10px">${c.unreadCount}</div>` : ''}
+                    <div style="display:flex; flex-direction:column; align-items:flex-end">
+                        ${c.unreadCount > 0 ? `<div style="background:var(--unread);color:white;border-radius:12px;padding:2px 8px;font-size:12px;font-weight:bold">${c.unreadCount}</div>` : ''}
                     </div>
                 `;
                 list.appendChild(item);
@@ -248,10 +312,7 @@
             chats[activeChatId].messages.forEach(m => {
                 const d = document.createElement('div');
                 d.className = `msg-bubble ${m.type==='out' ? 'msg-out' : ''}`;
-                let content = `<div>${m.text}</div>`;
-                if (m.btnName) content += `<div class="msg-btn">${m.btnName}</div>`;
-                content += `<small class="msg-time">${m.time}</small>`;
-                d.innerHTML = content;
+                d.innerHTML = `<div>${m.text}</div>${m.btnName ? `<div class="msg-btn">${m.btnName}</div>` : ''}<small style="font-size:10px; color:#999; float:right; margin-top:4px">${m.time}</small>`;
                 hist.appendChild(d);
             });
             hist.scrollTop = hist.scrollHeight;

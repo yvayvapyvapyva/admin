@@ -3,348 +3,496 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>TG Bot iPhone Edition</title>
+    <title>TG Bot Pro Manager</title>
+    <!-- Google Fonts для современного вида -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root { 
-            --tg-color: #0088cc; --bg-color: #f0f2f5; --accent: #34a853; 
-            --out-msg: #effdde; --unread: #ff4d4d; --danger: #eb4d4b; 
+            --primary: #0088cc;
+            --primary-light: #33a1d6;
+            --bg-app: #f4f7f9;
+            --bg-chat: #e2e8ec;
+            --text-main: #222;
+            --text-muted: #8e8e93;
+            --white: #ffffff;
+            --glass: rgba(255, 255, 255, 0.8);
+            --safe-top: env(safe-area-inset-top);
             --safe-bottom: env(safe-area-inset-bottom);
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.05);
+            --shadow-md: 0 4px 16px rgba(0,0,0,0.1);
         }
         
-        /* Исправление высоты для iOS */
+        * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+
         html, body { 
             height: 100dvh; margin: 0; padding: 0; 
-            overflow: hidden; -webkit-tap-highlight-color: transparent; 
-        }
-        
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background: var(--bg-color); display: flex; flex-direction: column;
+            overflow: hidden; background: var(--bg-app);
+            font-family: 'Inter', -apple-system, sans-serif;
+            color: var(--text-main);
         }
 
         .hidden { display: none !important; }
-        
-        /* Адаптивная сетка: на мобилках список чатов прячется при открытом чате */
-        #main-screen { 
+
+        /* --- Контейнер приложения --- */
+        #app-container { 
             display: flex; height: 100dvh; width: 100vw; position: relative;
         }
-        
-        /* Боковая панель (Список чатов) */
+
+        /* --- Боковая панель --- */
         #sidebar { 
-            background: white; width: 100%; height: 100%; 
+            width: 100%; height: 100%; background: var(--white);
             display: flex; flex-direction: column; flex-shrink: 0;
-            transition: transform 0.3s ease;
+            z-index: 5; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        
-        /* Область чата (надвигается поверх на мобилках) */
+
+        .header-ui {
+            padding: calc(16px + var(--safe-top)) 20px 16px;
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .header-ui h2 { margin: 0; font-size: 20px; font-weight: 700; color: var(--primary); }
+
+        #chat-list { 
+            overflow-y: auto; flex-grow: 1; 
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .chat-card {
+            padding: 12px 16px; margin: 8px 12px;
+            border-radius: 16px; background: transparent;
+            display: flex; gap: 12px; align-items: center;
+            transition: 0.2s; cursor: pointer;
+        }
+        .chat-card:active { background: #f0f0f0; transform: scale(0.98); }
+        .chat-card.active { background: #eef7ff; }
+
+        .chat-avatar {
+            width: 52px; height: 52px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary-light), var(--primary));
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: 700; font-size: 20px;
+        }
+
+        .chat-meta { flex-grow: 1; overflow: hidden; }
+        .chat-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .chat-name { font-weight: 600; font-size: 16px; }
+        .chat-time { font-size: 12px; color: var(--text-muted); }
+        .chat-preview { font-size: 14px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .unread-dot {
+            background: var(--primary); color: white; min-width: 20px; height: 20px;
+            border-radius: 10px; font-size: 11px; display: flex; align-items: center;
+            justify-content: center; padding: 0 6px; font-weight: 700;
+        }
+
+        /* --- Окно чата --- */
         #chat-window { 
-            position: absolute; left: 0; top: 0; width: 100%; height: 100%;
-            background: #e7ebf0; display: flex; flex-direction: column;
-            transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            z-index: 10;
+            position: absolute; inset: 0; z-index: 10;
+            background: var(--bg-chat); display: flex; flex-direction: column;
+            transform: translateX(100%); transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
         #chat-window.open { transform: translateX(0); }
 
-        .sidebar-header, .chat-header { 
-            padding: 12px 16px; padding-top: calc(12px + env(safe-area-inset-top));
-            background: var(--tg-color); color: white; 
-            display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
-        }
-
-        /* Список чатов */
-        #chat-list { overflow-y: auto; -webkit-overflow-scrolling: touch; flex-grow: 1; }
-        .chat-item { 
-            padding: 14px 16px; border-bottom: 0.5px solid #eee; 
-            display: flex; justify-content: space-between; align-items: center; min-height: 75px; 
-        }
-
-        /* Сообщения */
-        #messages-history { 
-            flex-grow: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; 
-            padding: 15px; display: flex; flex-direction: column; gap: 8px; 
-        }
-        .msg-bubble { 
-            max-width: 80%; padding: 10px 14px; border-radius: 18px; 
-            background: white; font-size: 15px; line-height: 1.4;
-            box-shadow: 0 1px 1px rgba(0,0,0,0.1); word-wrap: break-word; 
-        }
-        .msg-out { align-self: flex-end; background: var(--out-msg); border-bottom-right-radius: 4px; }
-        
-        /* Кнопки пресетов (iOS Style) */
-        .msg-btn { 
-            display: block; margin-top: 8px; padding: 10px;
-            background: white; color: var(--tg-color);
-            border-radius: 10px; text-align: center; font-weight: 600; font-size: 14px;
-        }
-
-        /* Панель управления */
-        .controls-panel { 
-            background: white; padding: 10px 10px calc(10px + var(--safe-bottom)); 
-            border-top: 0.5px solid #ccc; flex-shrink: 0;
-        }
-        
-        #templates-bar { 
-            display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px;
+        #messages-container {
+            flex-grow: 1; overflow-y: auto; padding: 16px;
+            display: flex; flex-direction: column; gap: 12px;
             -webkit-overflow-scrolling: touch;
         }
-        .preset-card { 
-            min-width: 140px; background: #f1f3f5; border-radius: 12px; 
-            padding: 10px; border: 2px solid transparent; 
-        }
-        .preset-card.selected { border-color: var(--tg-color); background: #eef7ff; }
 
-        /* Ввод (размер шрифта 16px для предотвращения зума на iPhone) */
-        .input-area { display: flex; gap: 8px; align-items: center; }
-        #reply-text { 
-            flex-grow: 1; padding: 10px 15px; border-radius: 25px; 
-            border: 1px solid #ddd; outline: none; font-size: 16px; 
-            -webkit-appearance: none;
-            appearance: none;
+        .bubble {
+            max-width: 85%; padding: 10px 14px; border-radius: 18px;
+            font-size: 15px; position: relative; line-height: 1.4;
+            box-shadow: var(--shadow-sm); animation: fadeIn 0.2s ease;
         }
-        .btn-main { 
-            background: var(--tg-color); color: white; border-radius: 50%; 
-            width: 40px; height: 40px; border: none; font-weight: bold; font-size: 18px;
-            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        .bubble.in { align-self: flex-start; background: var(--white); border-bottom-left-radius: 4px; }
+        .bubble.out { align-self: flex-end; background: #dcf8c6; border-bottom-right-radius: 4px; }
+
+        .bubble-btn {
+            margin-top: 8px; background: rgba(255,255,255,0.7);
+            border: 1px solid rgba(0,0,0,0.05); border-radius: 10px;
+            padding: 10px; text-align: center; font-weight: 600;
+            color: var(--primary); font-size: 14px; pointer-events: none;
         }
 
-        /* Модалка */
-        .modal-content { 
-            width: 90%; max-width: 350px; border-radius: 20px; 
-            padding: 20px; background: white;
+        .bubble-time { font-size: 10px; color: var(--text-muted); float: right; margin: 4px -4px -4px 8px; }
+
+        /* --- Нижняя панель --- */
+        .bottom-panel {
+            background: var(--glass); backdrop-filter: blur(15px);
+            padding: 12px 12px calc(12px + var(--safe-bottom));
+            border-top: 1px solid rgba(0,0,0,0.05);
         }
-        input, textarea { font-size: 16px !important; } /* Важно для iOS */
+
+        .presets-row {
+            display: flex; gap: 10px; overflow-x: auto; padding-bottom: 12px;
+            scrollbar-width: none; -webkit-overflow-scrolling: touch;
+        }
+        .presets-row::-webkit-scrollbar { display: none; }
+
+        .preset-item {
+            min-width: 150px; background: var(--white); border-radius: 14px;
+            padding: 10px; border: 2px solid transparent; transition: 0.2s;
+            box-shadow: var(--shadow-sm); position: relative;
+        }
+        .preset-item.selected { border-color: var(--primary); background: #f0f9ff; }
+        .preset-tag { font-size: 10px; color: var(--primary); font-weight: 700; margin-bottom: 4px; display: block; }
+        .preset-txt { font-size: 12px; color: var(--text-main); height: 34px; overflow: hidden; line-height: 1.2; }
+        .preset-btn-mock { 
+            margin-top: 6px; border: 1px solid var(--primary); color: var(--primary);
+            font-size: 11px; text-align: center; border-radius: 6px; padding: 4px; font-weight: 600;
+        }
+        .preset-edit-btn { position: absolute; top: 6px; right: 8px; font-size: 14px; color: #ccc; }
+
+        .input-wrap { display: flex; gap: 10px; align-items: flex-end; }
+        
+        .main-input {
+            flex-grow: 1; min-height: 44px; max-height: 120px;
+            background: rgba(0,0,0,0.04); border: none; border-radius: 22px;
+            padding: 12px 18px; font-size: 16px; outline: none;
+            appearance: none; -webkit-appearance: none;
+        }
+
+        .send-trigger {
+            width: 44px; height: 44px; border-radius: 50%;
+            background: var(--primary); color: white; border: none;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: 0.2s; flex-shrink: 0;
+        }
+        .send-trigger:active { transform: scale(0.9); background: var(--primary-light); }
+
+        /* --- Модальное окно --- */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(4px); z-index: 100;
+            display: flex; align-items: center; justify-content: center; padding: 20px;
+        }
+        .modal {
+            background: var(--white); width: 100%; max-width: 400px;
+            border-radius: 28px; padding: 24px; box-shadow: var(--shadow-md);
+            animation: modalIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        @keyframes modalIn { from { transform: scale(0.9) translateY(20px); opacity: 0; } }
+
+        .field-group { margin-bottom: 16px; }
+        .field-group label { display: block; font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+        .field-group input, .field-group textarea {
+            width: 100%; padding: 12px; border-radius: 12px; border: 1px solid #eee;
+            font-size: 16px; font-family: inherit; outline: none;
+            appearance: none; -webkit-appearance: none;
+        }
+
+        .modal-btns { display: flex; gap: 12px; margin-top: 20px; }
+        .btn { 
+            flex: 1; padding: 14px; border-radius: 14px; border: none; 
+            font-weight: 700; font-size: 15px; cursor: pointer; transition: 0.2s;
+            appearance: none; -webkit-appearance: none;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-danger { background: #fee2e2; color: var(--danger); }
+        .btn-ghost { background: transparent; color: var(--text-muted); }
+
+        /* --- Экран входа --- */
+        #login-screen {
+            height: 100dvh; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; padding: 30px;
+            background: linear-gradient(135deg, #e0f2fe, #f0f9ff);
+        }
+        .login-card {
+            background: var(--white); padding: 32px; border-radius: 32px;
+            width: 100%; max-width: 360px; box-shadow: var(--shadow-md);
+            text-align: center;
+        }
     </style>
 </head>
 <body>
 
+    <!-- Вход -->
     <div id="login-screen">
-        <div style="padding: 40px 20px; text-align: center;">
-            <h2 style="color: var(--tg-color)">Bot Admin</h2>
-            <input type="text" id="bot-token-input" placeholder="Token" style="width:100%; padding:15px; border-radius:12px; border:1px solid #ccc; font-size:16px; box-sizing: border-box;">
-            <button onclick="saveToken()" style="background:var(--tg-color); color:white; margin-top:15px; width:100%; padding:15px; border:none; border-radius:12px; font-weight:bold;">Войти</button>
+        <div class="login-card">
+            <h1 style="color:var(--primary); margin:0 0 8px">TG Bot Pro</h1>
+            <p style="color:var(--text-muted); margin-bottom:24px">Введите токен вашего бота</p>
+            <input type="text" id="bot-token" placeholder="API Token" style="width:100%; padding:14px; border-radius:12px; border:1px solid #ddd; font-size:16px; margin-bottom:16px; outline:none">
+            <button class="btn btn-primary" style="width:100%" onclick="initApp()">Подключиться</button>
         </div>
     </div>
 
-    <div id="main-screen" class="hidden">
+    <!-- Основной интерфейс -->
+    <div id="app-container" class="hidden">
+        <!-- Список чатов -->
         <aside id="sidebar">
-            <div class="sidebar-header">
-                <span id="bot-name">...</span>
-                <button onclick="logout()" style="background:none; border:1px solid white; color:white; border-radius:8px; padding:4px 8px; font-size:12px">Выход</button>
+            <header class="header-ui">
+                <h2 id="bot-username">@bot</h2>
+                <button onclick="logout()" class="btn-ghost" style="font-size:13px; font-weight:600; border:none; background:none">Выйти</button>
+            </header>
+            <div id="chat-list">
+                <!-- Сюда попадут чаты -->
             </div>
-            <div id="chat-list"></div>
         </aside>
 
-        <section id="chat-window">
-            <div class="chat-header">
-                <button onclick="closeChat()" style="background:none; border:none; color:white; font-size:24px; padding:0 10px 0 0">←</button>
-                <span id="active-chat-title" style="font-weight:bold; flex-grow:1">Чат</span>
-            </div>
-            <div id="messages-history"></div>
-            <div class="controls-panel">
-                <div id="templates-bar">
-                    <button onclick="openModal()" style="min-width:44px; height:44px; border-radius:12px; border:1px solid #ccc; background:none; font-size:20px">+</button>
-                    <div id="tpl-list" style="display: flex; gap: 10px;"></div>
+        <!-- Окно чата -->
+        <main id="chat-window">
+            <header class="header-ui">
+                <button onclick="closeChat()" style="background:none; border:none; font-size:24px; padding:0 10px 0 0">←</button>
+                <div style="flex-grow:1">
+                    <div id="chat-active-name" style="font-weight:700; font-size:16px">Имя</div>
+                    <div style="font-size:11px; color:var(--text-muted)">в сети</div>
                 </div>
-                <div class="input-area">
-                    <input type="text" id="reply-text" placeholder="Сообщение" onkeypress="if(event.key==='Enter') sendMessage()">
-                    <button class="btn-main" onclick="sendMessage()">↑</button>
+            </header>
+
+            <div id="messages-container">
+                <!-- Сообщения -->
+            </div>
+
+            <div class="bottom-panel">
+                <div id="presets-container" class="presets-row">
+                    <button onclick="openTplModal()" style="min-width:44px; height:44px; border-radius:14px; border:2px dashed #ccc; background:none; font-size:20px; color:#999">+</button>
+                    <div id="tpl-list-ui" style="display:flex; gap:10px"></div>
+                </div>
+                <div class="input-wrap">
+                    <textarea id="msg-input" class="main-input" placeholder="Сообщение..." rows="1" oninput="autoHeight(this)"></textarea>
+                    <button class="send-trigger" onclick="handleSend()">↑</button>
                 </div>
             </div>
-        </section>
+        </main>
     </div>
 
-    <div id="modal-tpl" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:100;">
-        <div class="modal-content">
-            <h3 style="margin-top:0">Пресет</h3>
-            <textarea id="new-tpl-text" rows="3" placeholder="Текст сообщения" style="width:100%; box-sizing:border-box; margin-bottom:10px; border-radius:8px; padding:10px"></textarea>
-            <input type="text" id="new-tpl-name" placeholder="Текст кнопки" style="width:100%; box-sizing:border-box; margin-bottom:10px; border-radius:8px; padding:10px">
-            <input type="text" id="new-tpl-url" placeholder="https://..." style="width:100%; box-sizing:border-box; margin-bottom:10px; border-radius:8px; padding:10px">
-            <div style="display:flex; gap:10px">
-                <button id="modal-delete-btn" onclick="deleteTemplateFromModal()" style="background:var(--danger); color:white; border:none; padding:12px; border-radius:10px; font-weight:bold" class="hidden">Удалить</button>
-                <button onclick="saveTemplate()" style="background:var(--accent); color:white; border:none; padding:12px; border-radius:10px; font-weight:bold; flex:1">Сохранить</button>
+    <!-- Редактор пресетов -->
+    <div id="modal-tpl" class="modal-overlay hidden">
+        <div class="modal">
+            <h3 style="margin:0 0 20px">Редактор пресета</h3>
+            <div class="field-group">
+                <label>Текст сообщения</label>
+                <textarea id="tpl-text" rows="3" placeholder="Что напишет бот?"></textarea>
             </div>
-            <button onclick="closeModal()" style="width:100%; background:none; border:none; padding:15px; color:#666">Отмена</button>
+            <div class="field-group">
+                <label>Название кнопки Mini App</label>
+                <input type="text" id="tpl-btn-name" placeholder="Открыть магазин">
+            </div>
+            <div class="field-group">
+                <label>Ссылка (URL)</label>
+                <input type="text" id="tpl-url" placeholder="https://...">
+            </div>
+            <div class="modal-btns">
+                <button id="btn-del-tpl" class="btn btn-danger hidden" onclick="confirmDelete()">Удалить</button>
+                <button class="btn btn-primary" onclick="saveTpl()">Сохранить</button>
+            </div>
+            <button class="btn btn-ghost" style="width:100%; margin-top:10px" onclick="closeTplModal()">Отмена</button>
         </div>
     </div>
 
     <script>
-        let botToken = localStorage.getItem('tg_bot_token');
-        let chats = JSON.parse(localStorage.getItem('tg_chats_history')) || {};
-        let templates = JSON.parse(localStorage.getItem('tg_templates')) || [];
-        let lastUpdateId = parseInt(localStorage.getItem('tg_last_update_id')) || 0;
+        let botToken = localStorage.getItem('pro_bot_token');
+        let chats = JSON.parse(localStorage.getItem('pro_chats')) || {};
+        let presets = JSON.parse(localStorage.getItem('pro_presets')) || [];
         let activeChatId = null;
-        let selectedTemplateIndex = null;
-        let editingTemplateIndex = null;
+        let selectedPresetIdx = null;
+        let editingPresetIdx = null;
+        let offset = 0;
 
-        window.onload = () => { if (botToken) showMainScreen(); renderTemplates(); };
+        window.onload = () => { if(botToken) startSession(); renderPresets(); };
 
-        function saveToken() {
-            const t = document.getElementById('bot-token-input').value.trim();
-            if(t) { localStorage.setItem('tg_bot_token', t); location.reload(); }
+        function initApp() {
+            const t = document.getElementById('bot-token').value.trim();
+            if(t) { localStorage.setItem('pro_bot_token', t); location.reload(); }
         }
+
         function logout() { localStorage.clear(); location.reload(); }
 
-        // Логика перехода между списком и чатом (Mobile Friendly)
+        function startSession() {
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('app-container').classList.remove('hidden');
+            fetchBotInfo();
+            pollUpdates();
+            renderChatList();
+        }
+
+        async function fetchBotInfo() {
+            const r = await fetch(`https://api.telegram.org/bot${botToken}/getMe`).then(res => res.json());
+            if(r.ok) document.getElementById('bot-username').innerText = `@${r.result.username}`;
+        }
+
+        async function pollUpdates() {
+            while(botToken) {
+                try {
+                    const res = await fetch(`https://api.telegram.org/bot${botToken}/getUpdates?offset=${offset}&timeout=30`).then(r => r.json());
+                    if(res.ok && res.result.length > 0) {
+                        res.result.forEach(u => {
+                            if(u.message) {
+                                const cid = u.message.chat.id;
+                                if(!chats[cid]) chats[cid] = { name: u.message.from.first_name || 'User', messages: [], unread: 0 };
+                                if(cid != activeChatId) chats[cid].unread++;
+                                
+                                const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                                chats[cid].lastMsg = u.message.text || '📎 Медиа';
+                                chats[cid].lastTime = time;
+                                chats[cid].messages.push({ type:'in', text: chats[cid].lastMsg, time });
+                                offset = u.update_id + 1;
+                            }
+                        });
+                        saveData(); renderChatList(); if(activeChatId) renderMessages();
+                    }
+                } catch(e) { await new Promise(r => setTimeout(r, 2000)); }
+            }
+        }
+
+        /* Чат UI */
         function openChat(id) {
             activeChatId = id;
-            chats[id].unreadCount = 0;
-            document.getElementById('active-chat-title').innerText = chats[id].name;
+            chats[id].unread = 0;
+            document.getElementById('chat-active-name').innerText = chats[id].name;
             document.getElementById('chat-window').classList.add('open');
-            saveAll(); renderChatList(); renderMessages();
+            renderChatList(); renderMessages(); saveData();
         }
+
         function closeChat() {
             activeChatId = null;
             document.getElementById('chat-window').classList.remove('open');
         }
 
-        /* Пресеты */
-        function openModal(idx = null) {
-            editingTemplateIndex = idx;
-            const delBtn = document.getElementById('modal-delete-btn');
-            if (idx !== null) {
-                const t = templates[idx];
-                document.getElementById('new-tpl-name').value = t.name;
-                document.getElementById('new-tpl-text').value = t.text || "";
-                document.getElementById('new-tpl-url').value = t.url;
-                delBtn.classList.remove('hidden');
-            } else {
-                document.getElementById('new-tpl-name').value = ""; document.getElementById('new-tpl-text').value = ""; document.getElementById('new-tpl-url').value = "";
-                delBtn.classList.add('hidden');
-            }
-            document.getElementById('modal-tpl').classList.remove('hidden');
-        }
-        function closeModal() { document.getElementById('modal-tpl').classList.add('hidden'); }
-        function saveTemplate() {
-            const name = document.getElementById('new-tpl-name').value.trim();
-            const text = document.getElementById('new-tpl-text').value.trim();
-            const url = document.getElementById('new-tpl-url').value.trim();
-            if(name && url) {
-                if (editingTemplateIndex !== null) templates[editingTemplateIndex] = { name, text, url };
-                else templates.push({ name, text, url });
-                localStorage.setItem('tg_templates', JSON.stringify(templates));
-                renderTemplates(); closeModal();
-            }
-        }
-        function deleteTemplateFromModal() {
-            if (editingTemplateIndex !== null && confirm("Удалить?")) {
-                templates.splice(editingTemplateIndex, 1);
-                localStorage.setItem('tg_templates', JSON.stringify(templates));
-                selectedTemplateIndex = null;
-                renderTemplates(); closeModal();
-            }
-        }
-
-        function renderTemplates() {
-            const container = document.getElementById('tpl-list');
-            container.innerHTML = '';
-            templates.forEach((tpl, idx) => {
-                const div = document.createElement('div');
-                div.className = `preset-card ${selectedTemplateIndex === idx ? 'selected' : ''}`;
-                div.onclick = () => {
-                    selectedTemplateIndex = (selectedTemplateIndex === idx) ? null : idx;
-                    document.getElementById('reply-text').value = selectedTemplateIndex !== null ? templates[idx].text : "";
-                    renderTemplates();
-                };
-                div.innerHTML = `
-                    <div style="font-size:10px; color:#666; height:24px; overflow:hidden">${tpl.text || '...'}</div>
-                    <div style="color:var(--tg-color); font-weight:bold; font-size:11px; text-align:center; border:1px solid; border-radius:5px; margin-top:5px; padding:2px">${tpl.name}</div>
-                    <div style="position:absolute; top:4px; right:4px; font-size:12px" onclick="event.stopPropagation(); openModal(${idx})">✎</div>
-                `;
-                container.appendChild(div);
-            });
-        }
-
-        /* Чат */
-        async function showMainScreen() {
-            document.getElementById('login-screen').classList.add('hidden');
-            document.getElementById('main-screen').classList.remove('hidden');
-            renderChatList(); pollMessages();
-            const r = await fetch(`https://api.telegram.org/bot${botToken}/getMe`).then(res => res.json());
-            if(r.ok) document.getElementById('bot-name').innerText = `@${r.result.username}`;
-        }
-
-        async function pollMessages() {
-            while(botToken) {
-                try {
-                    const res = await fetch(`https://api.telegram.org/bot${botToken}/getUpdates?offset=${lastUpdateId+1}&timeout=20`).then(r => r.json());
-                    if(res.ok && res.result.length > 0) {
-                        res.result.forEach(u => {
-                            if(u.message) {
-                                const cid = u.message.chat.id;
-                                if(!chats[cid]) chats[cid] = { name: u.message.from.first_name, messages: [], unreadCount: 0 };
-                                if (cid != activeChatId) chats[cid].unreadCount = (chats[cid].unreadCount || 0) + 1;
-                                const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                                chats[cid].lastMessage = u.message.text || '[Медиа]';
-                                chats[cid].messages.push({ type:'in', text: chats[cid].lastMessage, time: time });
-                                lastUpdateId = u.update_id;
-                            }
-                        });
-                        saveAll(); renderChatList(); if(activeChatId) renderMessages();
-                    }
-                } catch(e) { await new Promise(r => setTimeout(r, 5000)); }
-            }
-        }
-
         function renderChatList() {
-            const list = document.getElementById('chat-list');
-            list.innerHTML = '';
-            Object.keys(chats).forEach(id => {
+            const container = document.getElementById('chat-list');
+            container.innerHTML = '';
+            Object.keys(chats).sort((a,b) => b-a).forEach(id => {
                 const c = chats[id];
-                const item = document.createElement('div');
-                item.className = 'chat-item';
-                item.onclick = () => openChat(id);
-                item.innerHTML = `
-                    <div class="chat-info">
-                        <span class="chat-name">${c.name}</span>
-                        <span class="chat-last-msg">${c.lastMessage || ''}</span>
-                    </div>
-                    <div style="display:flex; flex-direction:column; align-items:flex-end">
-                        ${c.unreadCount > 0 ? `<div style="background:var(--unread);color:white;border-radius:12px;padding:2px 8px;font-size:12px;font-weight:bold">${c.unreadCount}</div>` : ''}
+                const card = document.createElement('div');
+                card.className = `chat-card ${id == activeChatId ? 'active' : ''}`;
+                card.onclick = () => openChat(id);
+                card.innerHTML = `
+                    <div class="chat-avatar">${c.name[0]}</div>
+                    <div class="chat-meta">
+                        <div class="chat-row">
+                            <span class="chat-name">${c.name}</span>
+                            <span class="chat-time">${c.lastTime || ''}</span>
+                        </div>
+                        <div class="chat-row">
+                            <span class="chat-preview">${c.lastMsg || 'Нет сообщений'}</span>
+                            ${c.unread > 0 ? `<div class="unread-dot">${c.unread}</div>` : ''}
+                        </div>
                     </div>
                 `;
-                list.appendChild(item);
+                container.appendChild(card);
             });
         }
 
         function renderMessages() {
-            const hist = document.getElementById('messages-history');
-            hist.innerHTML = '';
+            const h = document.getElementById('messages-container');
+            h.innerHTML = '';
             if(!activeChatId) return;
             chats[activeChatId].messages.forEach(m => {
-                const d = document.createElement('div');
-                d.className = `msg-bubble ${m.type==='out' ? 'msg-out' : ''}`;
-                d.innerHTML = `<div>${m.text}</div>${m.btnName ? `<div class="msg-btn">${m.btnName}</div>` : ''}<small style="font-size:10px; color:#999; float:right; margin-top:4px">${m.time}</small>`;
-                hist.appendChild(d);
+                const b = document.createElement('div');
+                b.className = `bubble ${m.type}`;
+                b.innerHTML = `
+                    <div>${m.text}</div>
+                    ${m.btn ? `<div class="bubble-btn">${m.btn}</div>` : ''}
+                    <span class="bubble-time">${m.time}</span>
+                `;
+                h.appendChild(b);
             });
-            hist.scrollTop = hist.scrollHeight;
+            h.scrollTop = h.scrollHeight;
         }
 
-        async function sendMessage() {
-            const input = document.getElementById('reply-text');
-            const text = input.value.trim();
-            if(!text || !activeChatId) return;
-            let apiUrl = `https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${activeChatId}&text=${encodeURIComponent(text)}`;
+        /* Пресеты Логика */
+        function openTplModal(idx = null) {
+            editingPresetIdx = idx;
+            const delBtn = document.getElementById('btn-del-tpl');
+            if(idx !== null) {
+                const p = presets[idx];
+                document.getElementById('tpl-text').value = p.text;
+                document.getElementById('tpl-btn-name').value = p.btn;
+                document.getElementById('tpl-url').value = p.url;
+                delBtn.classList.remove('hidden');
+            } else {
+                document.getElementById('tpl-text').value = '';
+                document.getElementById('tpl-btn-name').value = '';
+                document.getElementById('tpl-url').value = '';
+                delBtn.classList.add('hidden');
+            }
+            document.getElementById('modal-tpl').classList.remove('hidden');
+        }
+
+        function closeTplModal() { document.getElementById('modal-tpl').classList.add('hidden'); }
+
+        function saveTpl() {
+            const text = document.getElementById('tpl-text').value.trim();
+            const btn = document.getElementById('tpl-btn-name').value.trim();
+            const url = document.getElementById('tpl-url').value.trim();
+            if(!text || !btn || !url) return;
+
+            const pData = { text, btn, url };
+            if(editingPresetIdx !== null) presets[editingPresetIdx] = pData;
+            else presets.push(pData);
+
+            localStorage.setItem('pro_presets', JSON.stringify(presets));
+            renderPresets(); closeTplModal();
+        }
+
+        function confirmDelete() {
+            if(confirm("Удалить этот пресет?")) {
+                presets.splice(editingPresetIdx, 1);
+                localStorage.setItem('pro_presets', JSON.stringify(presets));
+                selectedPresetIdx = null;
+                renderPresets(); closeTplModal();
+            }
+        }
+
+        function renderPresets() {
+            const container = document.getElementById('tpl-list-ui');
+            container.innerHTML = '';
+            presets.forEach((p, i) => {
+                const el = document.createElement('div');
+                el.className = `preset-item ${selectedPresetIdx === i ? 'selected' : ''}`;
+                el.onclick = () => {
+                    selectedPresetIdx = (selectedPresetIdx === i) ? null : i;
+                    document.getElementById('msg-input').value = selectedPresetIdx !== null ? presets[i].text : '';
+                    renderPresets();
+                };
+                el.innerHTML = `
+                    <span class="preset-tag">ПРЕСЕТ</span>
+                    <div class="preset-txt">${p.text}</div>
+                    <div class="preset-btn-mock">${p.btn}</div>
+                    <span class="preset-edit-btn" onclick="event.stopPropagation(); openTplModal(${i})">✎</span>
+                `;
+                container.appendChild(el);
+            });
+        }
+
+        async function handleSend() {
+            const input = document.getElementById('msg-input');
+            const val = input.value.trim();
+            if(!val || !activeChatId) return;
+
+            let url = `https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${activeChatId}&text=${encodeURIComponent(val)}`;
             let btnName = null;
-            if(selectedTemplateIndex !== null) {
-                const tpl = templates[selectedTemplateIndex];
-                btnName = tpl.name;
-                let bUrl = tpl.url.replace(/\s/g, '');
-                if(!/^https?:\/\//i.test(bUrl)) bUrl = 'https://' + bUrl;
-                apiUrl += `&reply_markup=${encodeURIComponent(JSON.stringify({ inline_keyboard: [[ { text: tpl.name, web_app: { url: bUrl } } ]] }))}`;
+
+            if(selectedPresetIdx !== null) {
+                const p = presets[selectedPresetIdx];
+                btnName = p.btn;
+                const kb = { inline_keyboard: [[ { text: p.btn, web_app: { url: p.url } } ]] };
+                url += `&reply_markup=${encodeURIComponent(JSON.stringify(kb))}`;
             }
-            const res = await fetch(apiUrl).then(r => r.json());
+
+            const res = await fetch(url).then(r => r.json());
             if(res.ok) {
-                const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                chats[activeChatId].messages.push({ type:'out', text, time, btnName });
-                chats[activeChatId].lastMessage = "Вы: " + text;
-                input.value = ''; selectedTemplateIndex = null;
-                renderTemplates(); renderMessages(); renderChatList(); saveAll();
+                const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                chats[activeChatId].messages.push({ type: 'out', text: val, time, btn: btnName });
+                chats[activeChatId].lastMsg = "Вы: " + val;
+                input.value = ''; selectedPresetIdx = null;
+                renderPresets(); renderMessages(); renderChatList(); saveData();
             }
         }
 
-        function saveAll() {
-            localStorage.setItem('tg_chats_history', JSON.stringify(chats));
-            localStorage.setItem('tg_last_update_id', lastUpdateId);
+        function saveData() {
+            localStorage.setItem('pro_chats', JSON.stringify(chats));
+        }
+
+        function autoHeight(el) {
+            el.style.height = 'auto';
+            el.style.height = el.scrollHeight + 'px';
         }
     </script>
 </body>

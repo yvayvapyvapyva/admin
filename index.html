@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TG Bot Manager: Full Edit/Delete</title>
+    <style>
+        :root { --tg-color: #0088cc; --bg-color: #f0f2f5; --accent: #34a853; --out-msg: #effdde; --unread: #ff4d4d; --danger: #eb4d4b; }
+        
+        html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg-color); display: flex; flex-direction: column; }
+        .hidden { display: none !important; }
+        
+        #main-screen { display: grid; grid-template-columns: 320px 1fr; height: 100vh; width: 100vw; }
+        
+        /* Боковая панель */
+        #sidebar { background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; height: 100vh; }
+        .sidebar-header { padding: 15px; background: var(--tg-color); color: white; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; }
+        #chat-list { overflow-y: auto; flex-grow: 1; }
+        .chat-item { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; align-items: center; height: 70px; }
+        .chat-item.active { background: #e1f0ff; border-left: 4px solid var(--tg-color); }
+        .chat-info { overflow: hidden; }
+        .chat-name { font-weight: bold; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .chat-last-msg { font-size: 0.85em; color: #777; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* Область чата */
+        #chat-window { display: flex; flex-direction: column; height: 100vh; overflow: hidden; background: #e7ebf0; }
+        #messages-history { flex-grow: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 8px; }
+        .msg-bubble { max-width: 75%; padding: 8px 12px; border-radius: 12px; background: white; align-self: flex-start; box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: relative; word-wrap: break-word; }
+        .msg-out { align-self: flex-end; background: var(--out-msg); border-bottom-right-radius: 4px; }
+        .msg-time { font-size: 10px; color: #999; float: right; margin-top: 5px; margin-left: 10px; }
+        .msg-btn { display: block; width: 100%; margin-top: 8px; padding: 8px; background: rgba(0, 136, 204, 0.1); color: var(--tg-color); border: 1px solid rgba(0, 136, 204, 0.2); border-radius: 8px; text-align: center; font-size: 0.9em; font-weight: 600; }
+
+        /* Панель пресетов */
+        .controls-panel { background: white; border-top: 1px solid #ddd; padding: 12px; flex-shrink: 0; }
+        #templates-bar { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px solid #f0f0f0; }
+        .preset-card { min-width: 160px; max-width: 160px; background: #f8f9fa; border: 2px solid #eee; border-radius: 10px; padding: 8px; cursor: pointer; position: relative; }
+        .preset-card.selected { border-color: var(--tg-color); background: #f0f7ff; }
+        .preset-preview-text { font-size: 0.7em; color: #666; height: 30px; overflow: hidden; margin-bottom: 5px; }
+        .preset-preview-btn { background: white; border: 1px solid var(--tg-color); color: var(--tg-color); border-radius: 6px; font-size: 0.7em; padding: 3px; text-align: center; font-weight: bold; }
+        .edit-icon { position: absolute; top: 4px; right: 6px; font-size: 12px; color: #aaa; }
+
+        .input-area { display: flex; gap: 10px; align-items: center; }
+        #reply-text { flex-grow: 1; padding: 12px; border-radius: 20px; border: 1px solid #ddd; outline: none; }
+        .btn-main { background: var(--tg-color); color: white; border-radius: 20px; padding: 10px 22px; font-weight: bold; border: none; cursor: pointer; }
+        
+        /* Модалка с кнопкой удаления */
+        #modal-tpl { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 100; }
+        .modal-content { background: white; padding: 25px; border-radius: 12px; width: 320px; display: flex; flex-direction: column; gap: 10px; }
+        input, textarea { padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; }
+        .modal-footer { display: flex; gap: 10px; margin-top: 10px; }
+        .btn-save { background: var(--accent); color: white; flex: 2; padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .btn-delete { background: var(--danger); color: white; flex: 1; padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .btn-cancel { background: #ccc; width: 100%; padding: 10px; border: none; border-radius: 8px; margin-top: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div id="login-screen">
+        <div style="background: white; padding: 30px; border-radius: 12px; text-align: center;">
+            <h2>Bot Login</h2>
+            <input type="text" id="bot-token-input" placeholder="Введите API Токен" style="width:100%">
+            <button onclick="saveToken()" style="background:var(--tg-color); color:white; margin-top:15px; width:100%; padding:10px; border:none; border-radius:8px;">Войти</button>
+        </div>
+    </div>
+
+    <div id="main-screen" class="hidden">
+        <aside id="sidebar">
+            <div class="sidebar-header">
+                <span id="bot-name">...</span>
+                <button onclick="logout()" style="background:none; color:white; border:1px solid white; padding:4px 8px; cursor:pointer">Выход</button>
+            </div>
+            <div id="chat-list"></div>
+        </aside>
+
+        <section id="chat-window">
+            <div id="messages-history"></div>
+            <div class="controls-panel">
+                <div id="templates-bar">
+                    <button onclick="openModal()" style="min-width:40px; height:40px; border-radius:10px; border:2px dashed #ccc; background:none; cursor:pointer">+</button>
+                    <div id="tpl-list" style="display: flex; gap: 10px;"></div>
+                </div>
+                <div class="input-area">
+                    <input type="text" id="reply-text" placeholder="Сообщение..." onkeypress="if(event.key==='Enter') sendMessage()">
+                    <button class="btn-main" onclick="sendMessage()">ОТПРАВИТЬ</button>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <div id="modal-tpl" class="hidden">
+        <div class="modal-content">
+            <h3 id="modal-title" style="margin:0">Настройка пресета</h3>
+            <textarea id="new-tpl-text" rows="3" placeholder="Текст сообщения"></textarea>
+            <input type="text" id="new-tpl-name" placeholder="Текст на кнопке">
+            <input type="text" id="new-tpl-url" placeholder="URL ссылки">
+            
+            <div class="modal-footer">
+                <button id="modal-delete-btn" class="btn-delete hidden" onclick="deleteTemplateFromModal()">Удалить</button>
+                <button class="btn-save" onclick="saveTemplate()">Сохранить</button>
+            </div>
+            <button class="btn-cancel" onclick="closeModal()">Отмена</button>
+        </div>
+    </div>
+
+    <script>
+        let botToken = localStorage.getItem('tg_bot_token');
+        let chats = JSON.parse(localStorage.getItem('tg_chats_history')) || {};
+        let templates = JSON.parse(localStorage.getItem('tg_templates')) || [];
+        let lastUpdateId = parseInt(localStorage.getItem('tg_last_update_id')) || 0;
+        let activeChatId = null;
+        let selectedTemplateIndex = null;
+        let editingTemplateIndex = null;
+
+        window.onload = () => { if (botToken) showMainScreen(); renderTemplates(); };
+
+        function saveToken() {
+            const t = document.getElementById('bot-token-input').value.trim();
+            if(t) { localStorage.setItem('tg_bot_token', t); location.reload(); }
+        }
+        function logout() { localStorage.clear(); location.reload(); }
+
+        /* Логика модального окна */
+        function openModal(idx = null) {
+            editingTemplateIndex = idx;
+            const delBtn = document.getElementById('modal-delete-btn');
+            
+            if (idx !== null) {
+                const t = templates[idx];
+                document.getElementById('new-tpl-name').value = t.name;
+                document.getElementById('new-tpl-text').value = t.text || "";
+                document.getElementById('new-tpl-url').value = t.url;
+                delBtn.classList.remove('hidden'); // Показываем кнопку удаления
+            } else {
+                document.getElementById('new-tpl-name').value = "";
+                document.getElementById('new-tpl-text').value = "";
+                document.getElementById('new-tpl-url').value = "";
+                delBtn.classList.add('hidden'); // Скрываем при создании нового
+            }
+            document.getElementById('modal-tpl').classList.remove('hidden');
+        }
+
+        function closeModal() { document.getElementById('modal-tpl').classList.add('hidden'); }
+
+        function saveTemplate() {
+            const name = document.getElementById('new-tpl-name').value.trim();
+            const text = document.getElementById('new-tpl-text').value.trim();
+            const url = document.getElementById('new-tpl-url').value.trim();
+            if(name && url) {
+                if (editingTemplateIndex !== null) templates[editingTemplateIndex] = { name, text, url };
+                else templates.push({ name, text, url });
+                localStorage.setItem('tg_templates', JSON.stringify(templates));
+                renderTemplates(); closeModal();
+            }
+        }
+
+        function deleteTemplateFromModal() {
+            if (editingTemplateIndex !== null && confirm("Вы уверены, что хотите удалить этот пресет?")) {
+                templates.splice(editingTemplateIndex, 1);
+                localStorage.setItem('tg_templates', JSON.stringify(templates));
+                selectedTemplateIndex = null;
+                renderTemplates();
+                closeModal();
+            }
+        }
+
+        function renderTemplates() {
+            const container = document.getElementById('tpl-list');
+            container.innerHTML = '';
+            templates.forEach((tpl, idx) => {
+                const div = document.createElement('div');
+                div.className = `preset-card ${selectedTemplateIndex === idx ? 'selected' : ''}`;
+                div.onclick = () => selectTemplate(idx);
+                div.innerHTML = `
+                    <div class="preset-preview-text">${tpl.text || '...'}</div>
+                    <div class="preset-preview-btn">${tpl.name}</div>
+                    <span class="edit-icon" onclick="event.stopPropagation(); openModal(${idx})">✎</span>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function selectTemplate(idx) {
+            selectedTemplateIndex = (selectedTemplateIndex === idx) ? null : idx;
+            document.getElementById('reply-text').value = selectedTemplateIndex !== null ? templates[idx].text : "";
+            renderTemplates();
+        }
+
+        /* Telegram логика */
+        async function showMainScreen() {
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('main-screen').classList.remove('hidden');
+            renderChatList(); getBotInfo(); pollMessages();
+        }
+
+        async function getBotInfo() {
+            const r = await fetch(`https://api.telegram.org/bot${botToken}/getMe`).then(res => res.json());
+            if(r.ok) document.getElementById('bot-name').innerText = `@${r.result.username}`;
+        }
+
+        async function pollMessages() {
+            while(botToken) {
+                try {
+                    const res = await fetch(`https://api.telegram.org/bot${botToken}/getUpdates?offset=${lastUpdateId+1}&timeout=20`).then(r => r.json());
+                    if(res.ok && res.result.length > 0) {
+                        res.result.forEach(u => {
+                            if(u.message) {
+                                const cid = u.message.chat.id;
+                                if(!chats[cid]) chats[cid] = { name: u.message.from.first_name, messages: [], unreadCount: 0 };
+                                if (cid != activeChatId) chats[cid].unreadCount = (chats[cid].unreadCount || 0) + 1;
+                                const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                                chats[cid].lastMessage = u.message.text || '[Медиа]';
+                                chats[cid].messages.push({ type:'in', text: chats[cid].lastMessage, time: time });
+                                lastUpdateId = u.update_id;
+                            }
+                        });
+                        saveAll(); renderChatList(); if(activeChatId) renderMessages();
+                    }
+                } catch(e) { await new Promise(r => setTimeout(r, 5000)); }
+            }
+        }
+
+        function renderChatList() {
+            const list = document.getElementById('chat-list');
+            list.innerHTML = '';
+            Object.keys(chats).forEach(id => {
+                const c = chats[id];
+                const item = document.createElement('div');
+                item.className = `chat-item ${id == activeChatId ? 'active' : ''}`;
+                item.onclick = () => { activeChatId = id; c.unreadCount = 0; saveAll(); renderChatList(); renderMessages(); };
+                item.innerHTML = `
+                    <div class="chat-info">
+                        <span class="chat-name">${c.name}</span>
+                        <span class="chat-last-msg">${c.lastMessage || ''}</span>
+                    </div>
+                    <div class="chat-meta">
+                        ${c.unreadCount > 0 ? `<div style="background:var(--unread);color:white;border-radius:10px;padding:2px 7px;font-size:10px">${c.unreadCount}</div>` : ''}
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function renderMessages() {
+            const hist = document.getElementById('messages-history');
+            hist.innerHTML = '';
+            if(!activeChatId) return;
+            chats[activeChatId].messages.forEach(m => {
+                const d = document.createElement('div');
+                d.className = `msg-bubble ${m.type==='out' ? 'msg-out' : ''}`;
+                let content = `<div>${m.text}</div>`;
+                if (m.btnName) content += `<div class="msg-btn">${m.btnName}</div>`;
+                content += `<small class="msg-time">${m.time}</small>`;
+                d.innerHTML = content;
+                hist.appendChild(d);
+            });
+            hist.scrollTop = hist.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('reply-text');
+            const text = input.value.trim();
+            if(!text || !activeChatId) return;
+            let apiUrl = `https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${activeChatId}&text=${encodeURIComponent(text)}`;
+            let btnName = null;
+            if(selectedTemplateIndex !== null) {
+                const tpl = templates[selectedTemplateIndex];
+                btnName = tpl.name;
+                let bUrl = tpl.url.replace(/\s/g, '');
+                if(!/^https?:\/\//i.test(bUrl)) bUrl = 'https://' + bUrl;
+                apiUrl += `&reply_markup=${encodeURIComponent(JSON.stringify({ inline_keyboard: [[ { text: tpl.name, web_app: { url: bUrl } } ]] }))}`;
+            }
+            const res = await fetch(apiUrl).then(r => r.json());
+            if(res.ok) {
+                const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                chats[activeChatId].messages.push({ type:'out', text, time, btnName });
+                chats[activeChatId].lastMessage = "Вы: " + text;
+                input.value = ''; selectedTemplateIndex = null;
+                renderTemplates(); renderMessages(); renderChatList(); saveAll();
+            }
+        }
+
+        function saveAll() {
+            localStorage.setItem('tg_chats_history', JSON.stringify(chats));
+            localStorage.setItem('tg_last_update_id', lastUpdateId);
+        }
+    </script>
+</body>
+</html>

@@ -188,6 +188,14 @@
         }
         .context-item:active { background: #f0f0f0; }
         .context-item.delete { color: var(--danger); }
+
+        /* Custom Notification Toast */
+        #toast {
+            position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+            background: #333; color: white; padding: 10px 20px; border-radius: 20px;
+            font-size: 13px; z-index: 1000; opacity: 0; transition: 0.3s; pointer-events: none;
+        }
+        #toast.show { opacity: 1; bottom: 120px; }
     </style>
 </head>
 <body>
@@ -246,10 +254,9 @@
         </main>
     </div>
 
-    <!-- Context Menu for Message Actions -->
     <div id="msg-context-menu" class="context-menu hidden">
         <div class="context-item delete" id="ctx-delete-btn">
-            <span>🗑️ Удалить сообщение</span>
+            <span>🗑️ Удалить везде</span>
         </div>
     </div>
 
@@ -267,6 +274,8 @@
         </div>
     </div>
 
+    <div id="toast"></div>
+
     <script>
         const STORAGE_KEY = 'tg_cloud_config';
         let config = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
@@ -279,12 +288,18 @@
 
         window.onload = () => { if(config.tgToken && config.ghToken) startApp(); };
 
-        // Hide context menu on click elsewhere
         document.addEventListener('click', (e) => {
             if(!e.target.closest('.bubble')) {
                 document.getElementById('msg-context-menu').classList.add('hidden');
             }
         });
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
 
         function saveConfig() {
             const tg = document.getElementById('login-tg-token').value.trim();
@@ -349,7 +364,6 @@
                 }
                 setSyncStatus('Облако активно');
             } catch (e) {
-                console.error(e);
                 setSyncStatus('Ошибка синхронизации');
             }
         }
@@ -445,10 +459,9 @@
                 b.className = `bubble ${m.type}`;
                 b.innerHTML = `<div>${m.text}</div>${m.btn ? `<div class="bubble-btn">${m.btn}</div>` : ''}<span class="bubble-time">${m.time}</span>`;
                 
-                // Show actions on click (bubble acts as trigger)
                 b.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    showMsgContextMenu(e, m.id, idx);
+                    showMsgContextMenu(e, m, idx);
                 });
 
                 h.appendChild(b);
@@ -456,7 +469,7 @@
             h.scrollTop = h.scrollHeight;
         }
 
-        function showMsgContextMenu(e, messageId, msgIndex) {
+        function showMsgContextMenu(e, msgObj, msgIndex) {
             const menu = document.getElementById('msg-context-menu');
             const deleteBtn = document.getElementById('ctx-delete-btn');
             
@@ -466,25 +479,36 @@
 
             deleteBtn.onclick = async () => {
                 menu.classList.add('hidden');
-                if (confirm('Удалить это сообщение у всех?')) {
-                    await deleteMessage(messageId, msgIndex);
-                }
+                await deleteMessage(msgObj, msgIndex);
             };
         }
 
-        async function deleteMessage(mid, idx) {
-            // If mid is 0 or null (local error), just remove locally
-            if (mid) {
+        async function deleteMessage(msgObj, idx) {
+            let deletedFromTg = false;
+            
+            if (msgObj.id) {
                 try {
-                    const res = await fetch(`https://api.telegram.org/bot${config.tgToken}/deleteMessage?chat_id=${activeChatId}&message_id=${mid}`).then(r => r.json());
-                    // We continue even if TG fails (e.g. message too old), to keep local UI clean
-                } catch (e) { console.warn("Failed to delete from TG server", e); }
+                    const response = await fetch(`https://api.telegram.org/bot${config.tgToken}/deleteMessage?chat_id=${activeChatId}&message_id=${msgObj.id}`);
+                    const res = await response.json();
+                    
+                    if (res.ok) {
+                        deletedFromTg = true;
+                        showToast("Удалено в Telegram");
+                    } else {
+                        // Поясняем причину неудачи
+                        let errorMsg = "Ошибка TG: " + (res.description || "неизвестно");
+                        if (msgObj.type === 'in') errorMsg = "Нельзя удалять чужие сообщения в ЛС";
+                        showToast(errorMsg);
+                        // Если это не критично, можно продолжить удаление только в приложении
+                    }
+                } catch (e) { 
+                    showToast("Сетевая ошибка при удалении");
+                }
             }
 
-            // Remove from local state
+            // Удаляем локально в любом случае (чтобы очистить лог менеджера)
             chats[activeChatId].messages.splice(idx, 1);
             
-            // Update last message preview
             const msgs = chats[activeChatId].messages;
             if (msgs.length > 0) {
                 const last = msgs[msgs.length - 1];

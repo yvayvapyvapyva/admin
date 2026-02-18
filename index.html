@@ -99,7 +99,10 @@
             max-width: 85%; padding: 10px 14px; border-radius: 18px;
             font-size: 15px; position: relative; line-height: 1.4;
             box-shadow: var(--shadow-sm);
+            cursor: pointer;
+            transition: opacity 0.2s;
         }
+        .bubble:active { opacity: 0.7; }
         .bubble.in { align-self: flex-start; background: var(--white); border-bottom-left-radius: 4px; }
         .bubble.out { align-self: flex-end; background: #dcf8c6; border-bottom-right-radius: 4px; }
         
@@ -171,6 +174,20 @@
             background: var(--white); width: 100%; max-width: 380px;
             border-radius: 24px; padding: 20px;
         }
+
+        /* Context Menu Style */
+        .context-menu {
+            position: fixed; z-index: 200; background: var(--white);
+            box-shadow: var(--shadow-md); border-radius: 14px; padding: 6px;
+            min-width: 180px;
+        }
+        .context-item {
+            padding: 10px 14px; border-radius: 8px; cursor: pointer;
+            font-size: 14px; display: flex; align-items: center; gap: 10px;
+            transition: 0.2s;
+        }
+        .context-item:active { background: #f0f0f0; }
+        .context-item.delete { color: var(--danger); }
     </style>
 </head>
 <body>
@@ -229,6 +246,13 @@
         </main>
     </div>
 
+    <!-- Context Menu for Message Actions -->
+    <div id="msg-context-menu" class="context-menu hidden">
+        <div class="context-item delete" id="ctx-delete-btn">
+            <span>🗑️ Удалить сообщение</span>
+        </div>
+    </div>
+
     <div id="modal-tpl" class="modal-overlay hidden">
         <div class="modal">
             <h3 style="margin:0 0 16px">Пресет</h3>
@@ -254,6 +278,13 @@
         let updateOffset = 0;
 
         window.onload = () => { if(config.tgToken && config.ghToken) startApp(); };
+
+        // Hide context menu on click elsewhere
+        document.addEventListener('click', (e) => {
+            if(!e.target.closest('.bubble')) {
+                document.getElementById('msg-context-menu').classList.add('hidden');
+            }
+        });
 
         function saveConfig() {
             const tg = document.getElementById('login-tg-token').value.trim();
@@ -336,6 +367,7 @@
                         res.result.forEach(u => {
                             if(u.message) {
                                 const cid = u.message.chat.id;
+                                const mid = u.message.message_id;
                                 if(!chats[cid]) {
                                     chats[cid] = { 
                                         name: u.message.from.first_name || 'User', 
@@ -350,7 +382,7 @@
                                 chats[cid].lastMsg = u.message.text || '📎 Media';
                                 chats[cid].lastTime = timeStr;
                                 chats[cid].messages.push({ 
-                                    type:'in', text: chats[cid].lastMsg, time: timeStr, date: fullDate 
+                                    id: mid, type:'in', text: chats[cid].lastMsg, time: timeStr, date: fullDate 
                                 });
                                 updateOffset = u.update_id + 1;
                             }
@@ -408,13 +440,64 @@
             const h = document.getElementById('messages-container');
             h.innerHTML = '';
             if(!activeChatId) return;
-            chats[activeChatId].messages.forEach(m => {
+            chats[activeChatId].messages.forEach((m, idx) => {
                 const b = document.createElement('div');
                 b.className = `bubble ${m.type}`;
                 b.innerHTML = `<div>${m.text}</div>${m.btn ? `<div class="bubble-btn">${m.btn}</div>` : ''}<span class="bubble-time">${m.time}</span>`;
+                
+                // Show actions on click (bubble acts as trigger)
+                b.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showMsgContextMenu(e, m.id, idx);
+                });
+
                 h.appendChild(b);
             });
             h.scrollTop = h.scrollHeight;
+        }
+
+        function showMsgContextMenu(e, messageId, msgIndex) {
+            const menu = document.getElementById('msg-context-menu');
+            const deleteBtn = document.getElementById('ctx-delete-btn');
+            
+            menu.style.left = `${Math.min(e.clientX, window.innerWidth - 200)}px`;
+            menu.style.top = `${Math.min(e.clientY, window.innerHeight - 100)}px`;
+            menu.classList.remove('hidden');
+
+            deleteBtn.onclick = async () => {
+                menu.classList.add('hidden');
+                if (confirm('Удалить это сообщение у всех?')) {
+                    await deleteMessage(messageId, msgIndex);
+                }
+            };
+        }
+
+        async function deleteMessage(mid, idx) {
+            // If mid is 0 or null (local error), just remove locally
+            if (mid) {
+                try {
+                    const res = await fetch(`https://api.telegram.org/bot${config.tgToken}/deleteMessage?chat_id=${activeChatId}&message_id=${mid}`).then(r => r.json());
+                    // We continue even if TG fails (e.g. message too old), to keep local UI clean
+                } catch (e) { console.warn("Failed to delete from TG server", e); }
+            }
+
+            // Remove from local state
+            chats[activeChatId].messages.splice(idx, 1);
+            
+            // Update last message preview
+            const msgs = chats[activeChatId].messages;
+            if (msgs.length > 0) {
+                const last = msgs[msgs.length - 1];
+                chats[activeChatId].lastMsg = (last.type === 'out' ? "Вы: " : "") + last.text;
+                chats[activeChatId].lastTime = last.time;
+            } else {
+                chats[activeChatId].lastMsg = "";
+                chats[activeChatId].lastTime = "";
+            }
+
+            renderMessages();
+            renderChatList();
+            syncWithGist();
         }
 
         function renderPresets() {
@@ -450,7 +533,7 @@
                 const fullDate = new Date().toISOString();
                 const timeStr = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
                 chats[activeChatId].messages.push({ 
-                    type: 'out', text: val, time: timeStr, date: fullDate, btn: btnName 
+                    id: res.result.message_id, type: 'out', text: val, time: timeStr, date: fullDate, btn: btnName 
                 });
                 chats[activeChatId].lastMsg = "Вы: " + val;
                 chats[activeChatId].lastTime = timeStr;
